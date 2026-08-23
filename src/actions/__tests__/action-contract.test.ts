@@ -121,7 +121,7 @@ describe("composite action contract", () => {
     }
   });
 
-  test("uses TypeScript runtimes for policy, reporting, and URL resolution", async () => {
+  test("uses TypeScript runtimes for policy and orchestration", async () => {
     const metadata = await action();
     const steps = stepsFor(metadata);
     const commands = getCommandLines(steps);
@@ -130,13 +130,8 @@ describe("composite action contract", () => {
       'bun "$GITHUB_ACTION_PATH/src/actions/deployment-policy-main.ts"'
     );
     expect(commands).toContain(
-      'bun "$GITHUB_ACTION_PATH/src/actions/deployment-url-main.ts"'
+      'bun "$GITHUB_ACTION_PATH/src/actions/deployment-orchestration-main.ts"'
     );
-    expect(
-      commands.filter((line) =>
-        line.includes("src/actions/deployment-report-main.ts")
-      )
-    ).toHaveLength(4);
     expect(commands.join("\n")).not.toContain("gh api");
     expect(commands.join("\n")).not.toContain("preview-url-pattern");
   });
@@ -147,9 +142,11 @@ describe("composite action contract", () => {
     const steps = stepsFor(metadata);
     const resolve = stepNamed(steps, "Resolve and gate deployment target");
     const resolveEnv = envFor(resolve);
-    const recheck = stepNamed(steps, "Recheck deployment policy");
-    const links = stepNamed(steps, "Resolve deployment links");
-    const linksEnv = envFor(links);
+    const orchestration = stepNamed(
+      steps,
+      "Run typed deployment orchestration"
+    );
+    const orchestrationEnv = envFor(orchestration);
 
     for (const input of [
       "ci-workflow",
@@ -172,29 +169,20 @@ describe("composite action contract", () => {
     );
     expect(resolveEnv.REPOSITORY_ID).toContain("github.repository_id");
     expect(resolveEnv.WORKFLOW_RUN_ID).toContain("workflow_run.workflow_id");
-    expect(linksEnv.PREVIEW_PATTERN).toContain("inputs.preview-url-pattern");
-    expect(linksEnv.PRODUCTION_URL).toContain("inputs.production-url");
+    expect(orchestrationEnv.PREVIEW_PATTERN).toContain(
+      "inputs.preview-url-pattern"
+    );
+    expect(orchestrationEnv.PRODUCTION_URL).toContain("inputs.production-url");
     expect(metadataText).toContain("steps.resolve.outputs.deploy");
     expect(metadataText).toContain("steps.resolve.outputs.cleanup");
     expect(metadataText).toContain("steps.resolve.outputs.stage");
-    expect(metadataText).toContain("steps.resolve.outputs.preview");
-    expect(metadataText).toContain("steps.create.outputs.deployment-id");
-    expect(metadataText).toContain("steps.links.outputs.deployment-url");
-    expect(metadataText).toContain("steps.links.outputs.logs-url");
+    expect(metadataText).toContain("steps.resolve.outputs.deployment-sha");
 
     expect(resolve.id).toBe("resolve");
-    expect(indexOfStep(steps, "Recheck deployment policy")).toBeLessThan(
-      indexOfStep(steps, "Create GitHub deployment")
+    expect(indexOfStep(steps, "Check out exact consumer commit")).toBeLessThan(
+      indexOfStep(steps, "Run typed deployment orchestration")
     );
-    expect(indexOfStep(steps, "Recheck deployment policy")).toBeLessThan(
-      indexOfStep(steps, "Deploy Alchemy stack")
-    );
-    expect(recheck.if).toBe("steps.resolve.outputs.deploy == 'true'");
-    expect(recheck.id).toBe("recheck");
-    expect(envFor(recheck).RECHECK).toBe("true");
-    expect(recheck.run).toBe(
-      'bun "$GITHUB_ACTION_PATH/src/actions/deployment-policy-main.ts"'
-    );
+    expect(orchestration.if).toContain("steps.resolve.outputs.deploy");
     expect(
       steps.some((step) => {
         const values = record.safeParse(step.with);
@@ -211,16 +199,34 @@ describe("composite action contract", () => {
 
   test("does not expose GitHub credentials to consumer-controlled commands", async () => {
     const steps = stepsFor(await action());
-    for (const name of ["Deploy Alchemy stack", "Destroy preview stack"]) {
-      const environment = envFor(stepNamed(steps, name));
-      expect(environment.GITHUB_TOKEN).toBe("");
-      expect(environment.CLOUDFLARE_API_TOKEN).toContain(
-        "env.CLOUDFLARE_API_TOKEN"
-      );
-      expect(environment.CLOUDFLARE_ACCOUNT_ID).toContain(
-        "env.CLOUDFLARE_ACCOUNT_ID"
-      );
-    }
+    const environment = envFor(
+      stepNamed(steps, "Run typed deployment orchestration")
+    );
+    expect(environment.GITHUB_TOKEN).toContain("env.GITHUB_TOKEN");
+    expect(environment.CLOUDFLARE_API_TOKEN).toContain(
+      "env.CLOUDFLARE_API_TOKEN"
+    );
+    expect(environment.CLOUDFLARE_ACCOUNT_ID).toContain(
+      "env.CLOUDFLARE_ACCOUNT_ID"
+    );
+  });
+
+  test("keeps consumer execution on the Bash compatibility boundary", async () => {
+    const steps = stepsFor(await action());
+    const orchestration = stepNamed(
+      steps,
+      "Run typed deployment orchestration"
+    );
+    const source = await readFile(
+      "src/actions/deployment-orchestration-main.ts",
+      "utf-8"
+    );
+
+    expect(orchestration.shell).toBe("bash");
+    expect(source).toContain("bash");
+    expect(source).toContain("-euo");
+    expect(source).toContain("pipefail");
+    expect(source).toContain("tee");
   });
 
   test("clears deployment credentials from trusted setup and install steps", async () => {
