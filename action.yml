@@ -250,7 +250,7 @@ runs:
 
     - id: command
       name: Deploy Alchemy stack
-      if: steps.resolve.outputs.deploy == 'true'
+      if: success() && steps.resolve.outputs.deploy == 'true'
       shell: bash
       continue-on-error: true
       env:
