@@ -46,4 +46,19 @@ describe("report action input", () => {
       )._tag,
     ).toBe("err");
   });
+
+  test("rejects non-HTTPS report links", () => {
+    const result = parseReportEnvironment(
+      {
+        ...base,
+        DEPLOYMENT_ID: "123",
+        DEPLOYMENT_URL: "http://worker.example.com",
+        DEPLOY_OUTCOME: "success",
+        LOGS_URL: "https://dash.cloudflare.com/logs",
+        MODE: "complete",
+      },
+      new Date(0),
+    );
+    expect(result._tag).toBe("err");
+  });
 });
