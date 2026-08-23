@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+### Minor Changes
+
+- 1efd140: Run same-repository preview deployments from trusted workflow-run events instead of pull-request-target events.
+
 ## 2.0.2
 
 ### Patch Changes
