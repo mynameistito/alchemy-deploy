@@ -13,10 +13,16 @@ const remoteMain = Bun.spawnSync([
   "--quiet",
   "refs/remotes/origin/main",
 ]);
-const hasMain = localMain.exitCode === 0 || remoteMain.exitCode === 0;
+const resolveBaseRef = (): string | undefined => {
+  if (localMain.exitCode === 0) {
+    return "main";
+  }
+  return remoteMain.exitCode === 0 ? "origin/main" : undefined;
+};
+const baseRef = resolveBaseRef();
 
-if (head.exitCode === 0 && hasMain) {
-  const status = Bun.spawnSync(["bunx", "changeset", "status"], {
+if (head.exitCode === 0 && baseRef) {
+  const status = Bun.spawnSync(["bunx", "changeset", "status", `--since=${baseRef}`], {
     stderr: "inherit",
     stdout: "inherit",
   });

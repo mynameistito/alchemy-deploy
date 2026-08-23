@@ -34,7 +34,7 @@ use-adopt: true
 
 ## Deployment report action
 
-`actions/deployment-report` requires Bun to be installed and supports `create`, `complete`, `comment`, and `cleanup`. Inputs are parsed before API calls. API failures preserve operation and HTTP status without exposing the token. Comment lookup and deployment cleanup paginate all GitHub results.
+The root action (`mynameistito/alchemy-deploy@<full-release-sha>`) requires Bun to be installed and supports `create`, `complete`, `comment`, and `cleanup`. The implementation remains documented under `actions/deployment-report`. Inputs are parsed before API calls. API failures preserve operation and HTTP status without exposing the token. Comment lookup and deployment cleanup paginate all GitHub results.
 
 The caller grants `actions: read`, `contents: read`, `deployments: write`, and `pull-requests: write`; each called job narrows that set. Pass only `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, never `secrets: inherit`.
 

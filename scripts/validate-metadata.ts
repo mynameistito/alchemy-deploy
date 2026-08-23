@@ -57,9 +57,16 @@ for (const { file, text } of reads) {
   }
 }
 
-const action = parse(await Bun.file("actions/deployment-report/action.yml").text());
-if (typeof action !== "object" || action === null || !("runs" in action)) {
-  failures.push("actions/deployment-report/action.yml: missing runs metadata");
+const actionMetadata = await Promise.all(
+  ["action.yml", "actions/deployment-report/action.yml"].map(async (actionPath) => ({
+    action: parse(await Bun.file(actionPath).text()),
+    actionPath,
+  })),
+);
+for (const { action, actionPath } of actionMetadata) {
+  if (typeof action !== "object" || action === null || !("runs" in action)) {
+    failures.push(`${actionPath}: missing runs metadata`);
+  }
 }
 
 if (failures.length > 0) {
