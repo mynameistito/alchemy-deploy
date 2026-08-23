@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.1
+
+### Patch Changes
+
+- ed54102: Standardize internal `src` imports on the `@/*` alias and parse external GitHub, YAML, and Changesets data at their boundaries.
+- 822629b: Upgrade the Changesets CLI used to validate and release package metadata.
+- 2b6a28a: Upgrade the pinned GitHub Actions used by CI, release, deployment, and the composite action, while reading the Bun runtime from `package.json`.
+- ae59975: Upgrade the YAML parser used by repository metadata validation.
+
 ## 2.1.0
 
 ### Minor Changes
