@@ -20,6 +20,8 @@ const reportAction = async () =>
     parse(await readFile("actions/deployment-report/action.yml", "utf-8"))
   );
 const actionPathExpression = ["$", "{{ github.action_path }}"].join("");
+const githubExpression = (value: string): string =>
+  ["$", `{{ ${value} }}`].join("");
 
 const stepsFor = (metadata: YamlRecord) => {
   const runs = record.parse(metadata.runs);
@@ -35,6 +37,8 @@ const stepNamed = (steps: readonly YamlRecord[], name: string): YamlRecord => {
 };
 
 const envFor = (step: YamlRecord) => record.parse(step.env);
+const inputsFor = (metadata: YamlRecord) => record.parse(metadata.inputs);
+const outputsFor = (metadata: YamlRecord) => record.parse(metadata.outputs);
 
 const indexOfStep = (steps: readonly YamlRecord[], name: string): number => {
   const index = steps.findIndex((step) => step.name === name);
@@ -90,6 +94,12 @@ describe("composite action contract", () => {
       "actions",
       "deployment-report-main.ts"
     );
+    const policyOutput = path.join(directory, "policy-output.txt");
+    const orchestrationOutput = path.join(
+      directory,
+      "orchestration-output.txt"
+    );
+    const reportOutput = path.join(directory, "report-output.txt");
 
     const run = async (
       entrypoint: string,
@@ -109,11 +119,29 @@ describe("composite action contract", () => {
     };
 
     try {
-      const policy = await run(policyEntrypoint, { GITHUB_TOKEN: "" });
-      const report = await run(reportEntrypoint, { MODE: "invalid" });
+      const policy = await run(policyEntrypoint, {
+        GITHUB_OUTPUT: policyOutput,
+        GITHUB_TOKEN: "",
+      });
+      const orchestration = await run(
+        policyEntrypoint.replace(
+          "deployment-policy-main.ts",
+          "deployment-orchestration-main.ts"
+        ),
+        {
+          GITHUB_OUTPUT: orchestrationOutput,
+          PHASE: "",
+        }
+      );
+      const report = await run(reportEntrypoint, {
+        GITHUB_OUTPUT: reportOutput,
+        MODE: "invalid",
+      });
 
       expect(policy.exitCode).toBe(1);
       expect(policy.stderr).toContain("GITHUB_TOKEN is required");
+      expect(orchestration.exitCode).toBe(1);
+      expect(orchestration.stderr).toContain("PHASE is required");
       expect(report.exitCode).toBe(1);
       expect(report.stderr).toContain("Invalid deployment-report input");
     } finally {
@@ -138,7 +166,7 @@ describe("composite action contract", () => {
 
   test("maps public inputs and policy outputs without shell policy", async () => {
     const metadata = await action();
-    const inputs = record.parse(metadata.inputs);
+    const inputs = inputsFor(metadata);
     const steps = stepsFor(metadata);
     const resolve = stepNamed(steps, "Resolve and gate deployment target");
     const resolveEnv = envFor(resolve);
@@ -148,18 +176,31 @@ describe("composite action contract", () => {
     );
     const orchestrationEnv = envFor(orchestration);
 
-    for (const input of [
-      "ci-workflow",
-      "production-branch",
-      "production-stage",
-      "preview-url-pattern",
-      "worker-name",
-    ]) {
-      expect(inputs[input]).toBeDefined();
-    }
-    const metadataText = JSON.stringify(metadata);
-    for (const input of Object.keys(inputs)) {
-      expect(metadataText).toContain(`inputs.${input}`);
+    const expectedInputs = {
+      "ci-workflow": { default: "ci.yml", required: false },
+      "deploy-command": { required: true },
+      "destroy-command": { required: true },
+      "install-command": {
+        default: "bun install --frozen-lockfile",
+        required: false,
+      },
+      "preview-url-pattern": {
+        default: "https://{worker}-{stage}.*.workers.dev",
+        required: false,
+      },
+      "production-branch": { default: "main", required: false },
+      "production-stage": { default: "prod", required: false },
+      "production-url": { required: true },
+      "use-adopt": { default: false, required: false },
+      "worker-config": { default: "", required: false },
+      "worker-name": { required: true },
+    } as const;
+    for (const [name, contract] of Object.entries(expectedInputs)) {
+      const input = record.parse(inputs[name]);
+      expect(input.required).toBe(contract.required);
+      if ("default" in contract) {
+        expect(input.default).toBe(contract.default);
+      }
     }
     expect(resolveEnv.CI_WORKFLOW).toContain("inputs.ci-workflow");
     expect(resolveEnv.PRODUCTION_BRANCH).toContain("inputs.production-branch");
@@ -173,10 +214,9 @@ describe("composite action contract", () => {
       "inputs.preview-url-pattern"
     );
     expect(orchestrationEnv.PRODUCTION_URL).toContain("inputs.production-url");
-    expect(metadataText).toContain("steps.resolve.outputs.deploy");
-    expect(metadataText).toContain("steps.resolve.outputs.cleanup");
-    expect(metadataText).toContain("steps.resolve.outputs.stage");
-    expect(metadataText).toContain("steps.resolve.outputs.deployment-sha");
+    expect(orchestration.if).toBe(
+      "success() && (steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true')"
+    );
 
     expect(resolve.id).toBe("resolve");
     expect(indexOfStep(steps, "Check out exact consumer commit")).toBeLessThan(
@@ -195,6 +235,46 @@ describe("composite action contract", () => {
       })
     ).toBeTrue();
     expect(getCommandLines(steps)).not.toContain("pull_request_target");
+  });
+
+  test("declares report inputs and output sources structurally", async () => {
+    const metadata = await reportAction();
+    const inputs = inputsFor(metadata);
+    const outputs = outputsFor(metadata);
+    const expectedInputs = {
+      "deploy-outcome": { required: false },
+      "deployment-id": { required: false },
+      "deployment-sha": { required: true },
+      "deployment-url": { required: false },
+      mode: { required: true },
+      "production-stage": { default: "prod", required: false },
+      "pull-request-number": { required: false },
+      stage: { required: true },
+      "worker-name": { required: true },
+    } as const;
+    for (const [name, contract] of Object.entries(expectedInputs)) {
+      const input = record.parse(inputs[name]);
+      expect(input.required).toBe(contract.required);
+      if ("default" in contract) {
+        expect(input.default).toBe(contract.default);
+      }
+    }
+    for (const [name, source] of [
+      ["deployment-id", githubExpression("steps.report.outputs.deployment-id")],
+      [
+        "deleted-deployments",
+        githubExpression("steps.report.outputs.deleted-deployments"),
+      ],
+    ] as const) {
+      expect(record.parse(outputs[name]).value).toBe(source);
+    }
+    const report = stepNamed(stepsFor(metadata), "Report deployment");
+    expect(report.id).toBe("report");
+    expect(envFor(report)).toMatchObject({
+      DEPLOYMENT_SHA: githubExpression("inputs.deployment-sha"),
+      MODE: githubExpression("inputs.mode"),
+      STAGE: githubExpression("inputs.stage"),
+    });
   });
 
   test("does not expose GitHub credentials to consumer-controlled commands", async () => {

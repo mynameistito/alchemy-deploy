@@ -26,6 +26,10 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
+      - name: Verify action runtime
+        run: bun run validate:runtime
+      - name: Run clean action smoke tests
+        run: bun test src/actions/__tests__/action-contract.test.ts
       - name: Open release pull request
         uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:

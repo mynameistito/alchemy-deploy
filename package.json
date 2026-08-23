@@ -17,9 +17,10 @@
     "fix": "ultracite fix",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "validate": "bun run typecheck && bun test && bun run check && bun run validate:metadata && bun run validate:changesets",
+    "validate": "bun run typecheck && bun test && bun run check && bun run validate:metadata && bun run validate:runtime && bun run validate:changesets",
     "validate:changesets": "bun scripts/validate-changesets.ts",
     "validate:metadata": "bun scripts/validate-metadata.ts",
+    "validate:runtime": "bun scripts/validate-runtime.ts",
     "prepare": "lefthook install"
   },
   "dependencies": {
