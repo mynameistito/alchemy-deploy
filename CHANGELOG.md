@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.2
+
+### Patch Changes
+
+- f7f56de: Allow preview deployments after successful pull-request workflow runs without exposing secrets through `pull_request_target`.
+
 ## 2.1.1
 
 ### Patch Changes
