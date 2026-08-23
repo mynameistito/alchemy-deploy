@@ -8,6 +8,7 @@ import type {
   PolicyInput,
   PolicyDecision,
 } from "@/domain/deployment-policy.ts";
+import { parseDeploymentStage } from "@/domain/deployment.ts";
 import { createGitHubApi } from "@/github/github-api.ts";
 import type {
   GitHubDeployment,
@@ -194,6 +195,76 @@ const resolve = async (
   return ok(deploymentPolicy(baseInput));
 };
 
+/** Recheck the trusted commit immediately before running consumer code. */
+export const recheckDeploymentPolicy = async (
+  environment: PolicyEnvironment,
+  github: GitHubPolicyPort
+): Promise<Result<true, PolicyRuntimeError>> => {
+  const sha = required(environment, "DEPLOYMENT_SHA");
+  const stage = parseDeploymentStage(
+    environment.STAGE,
+    environment.PRODUCTION_STAGE ?? "prod"
+  );
+  if (sha._tag === "err") {
+    return sha;
+  }
+  if (stage._tag === "err") {
+    return err(new PolicyRuntimeError(stage.error.message));
+  }
+  if (stage.value._tag === "production") {
+    const branch = required(environment, "PRODUCTION_BRANCH");
+    if (branch._tag === "err") {
+      return branch;
+    }
+    if (
+      environment.EVENT_NAME !== "workflow_run" ||
+      environment.WORKFLOW_RUN_BRANCH !== branch.value
+    ) {
+      return err(
+        new PolicyRuntimeError(
+          "production is restricted to workflow_run on the production branch"
+        )
+      );
+    }
+    const current = await github.getBranchSha(branch.value);
+    if (current._tag === "err") {
+      return err(new PolicyRuntimeError(current.error.message));
+    }
+    return current.value === sha.value
+      ? ok(true)
+      : err(
+          new PolicyRuntimeError(
+            "production branch moved after policy resolution"
+          )
+        );
+  }
+
+  const number = integer(environment.PULL_REQUEST_NUMBER);
+  const repositoryId = integer(environment.REPOSITORY_ID);
+  if (!number || !repositoryId) {
+    return err(
+      new PolicyRuntimeError(
+        "PULL_REQUEST_NUMBER and REPOSITORY_ID must be positive integers"
+      )
+    );
+  }
+  const pullRequest = await github.getPullRequest(number);
+  if (pullRequest._tag === "err") {
+    return err(new PolicyRuntimeError(pullRequest.error.message));
+  }
+  const current = pullRequest.value;
+  return current.state === "open" &&
+    current.repositoryId === repositoryId &&
+    current.headRepositoryId === repositoryId &&
+    current.sha === sha.value
+    ? ok(true)
+    : err(
+        new PolicyRuntimeError(
+          "pull request head changed after policy resolution"
+        )
+      );
+};
+
 /** Resolve deployment or cleanup outputs through the production policy path. */
 export const runDeploymentPolicy = async (
   environment: PolicyEnvironment,
@@ -247,6 +318,14 @@ const main = async (): Promise<number> => {
     repository: name,
     token: token.value,
   });
+  if (Bun.env.RECHECK === "true") {
+    const result = await recheckDeploymentPolicy(Bun.env, github);
+    if (result._tag === "err") {
+      console.error(`::error::${result.error.message}`);
+      return 1;
+    }
+    return 0;
+  }
   const outputPath = Bun.env.GITHUB_OUTPUT;
   const output: PolicyOutput = outputPath
     ? (key, value) => appendFile(outputPath, `${key}=${value}\n`, "utf-8")

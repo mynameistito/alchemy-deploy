@@ -115,37 +115,6 @@ runs:
           exit 1
         fi
 
-    - name: Recheck deployment policy
-      if: steps.resolve.outputs.deploy == 'true'
-      shell: bash
-      env:
-        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
-        EVENT_NAME: ${{ github.event_name }}
-        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
-        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
-        PRODUCTION_STAGE: ${{ inputs.production-stage }}
-        REPOSITORY: ${{ github.repository }}
-        REPOSITORY_ID: ${{ github.repository_id }}
-        PULL_REQUEST_NUMBER: ${{ steps.resolve.outputs.pull-request-number }}
-        STAGE: ${{ steps.resolve.outputs.stage }}
-        WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
-      run: |
-        set -euo pipefail
-        if [ "$STAGE" = "$PRODUCTION_STAGE" ]; then
-          if [ "$EVENT_NAME" != 'workflow_run' ] || [ "$WORKFLOW_RUN_BRANCH" != "$PRODUCTION_BRANCH" ]; then
-            echo '::error::Production is restricted to a successful workflow_run from the production branch.'
-            exit 1
-          fi
-          branch_sha="$(gh api "repos/$REPOSITORY/branches/$PRODUCTION_BRANCH" --jq '.commit.sha')"
-          if [ "$branch_sha" != "$DEPLOYMENT_SHA" ]; then
-            echo "::error::Production branch moved to $branch_sha; refusing the stale commit."
-            exit 1
-          fi
-        elif [[ ! "$STAGE" =~ ^pr-[1-9][0-9]*$ ]]; then
-          echo '::error::Refusing an unsafe preview stage.'
-          exit 1
-        fi
-
     - id: create
       name: Create GitHub deployment
       if: steps.resolve.outputs.deploy == 'true'
@@ -159,23 +128,22 @@ runs:
         MODE: create
       run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
 
-    - name: Recheck PR head before Cloudflare deploy
-      if: steps.resolve.outputs.deploy == 'true' && steps.resolve.outputs.preview == 'true'
+    - name: Recheck deployment policy
+      if: steps.resolve.outputs.deploy == 'true'
       shell: bash
       env:
         DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
-        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
-        PULL_REQUEST_NUMBER: ${{ steps.resolve.outputs.pull-request-number }}
+        EVENT_NAME: ${{ github.event_name }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
         REPOSITORY: ${{ github.repository }}
         REPOSITORY_ID: ${{ github.repository_id }}
-      run: |
-        set -euo pipefail
-        pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.repo.id, .head.sha] | @tsv')"
-        IFS=$'\t' read -r current_state current_repository current_repository_id current_sha <<< "$pr_state"
-        if [ "$current_state" != "open" ] || [ "$current_repository" != "$REPOSITORY" ] || [ "$current_repository_id" != "$REPOSITORY_ID" ] || [ "$current_sha" != "$DEPLOYMENT_SHA" ]; then
-          echo '::error::Pull request changed after deployment record creation; refusing stale preview.'
-          exit 1
-        fi
+        PULL_REQUEST_NUMBER: ${{ steps.resolve.outputs.pull-request-number }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        RECHECK: "true"
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-policy-main.ts"
 
     - id: command
       name: Deploy Alchemy stack
@@ -257,10 +225,6 @@ runs:
         STAGE: ${{ steps.resolve.outputs.stage }}
       run: |
         set -o pipefail
-        if [[ ! "$STAGE" =~ ^pr-[1-9][0-9]*$ ]]; then
-          echo '::error::Refusing to destroy a non-preview stage.'
-          exit 1
-        fi
         bash -euo pipefail -c "$DESTROY_COMMAND" 2>&1 | tee "$RUNNER_TEMP/alchemy-destroy.log"
 
     - name: Preserve failed cleanup diagnostics

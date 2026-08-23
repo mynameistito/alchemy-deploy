@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { runDeploymentPolicy } from "@/actions/deployment-policy-main.ts";
+import {
+  recheckDeploymentPolicy,
+  runDeploymentPolicy,
+} from "@/actions/deployment-policy-main.ts";
 import type { GitHubPolicyPort } from "@/github/github-api.ts";
 import { ok } from "@/shared/result.ts";
 
@@ -58,6 +61,47 @@ const decisionKind = (
 ) => (result._tag === "ok" ? result.value.kind : "error");
 
 describe("deployment policy action boundary", () => {
+  test("rechecks the exact preview head before consumer code", async () => {
+    const result = await recheckDeploymentPolicy(
+      environment({ STAGE: "pr-42" }),
+      github()
+    );
+    expect(result).toEqual({ _tag: "ok", value: true });
+    const stale = await recheckDeploymentPolicy(
+      environment({ STAGE: "pr-42" }),
+      github({
+        getPullRequest: () =>
+          Promise.resolve(
+            ok({
+              headRepositoryId: 8,
+              number: 42,
+              repositoryId: 7,
+              sha,
+              state: "open",
+            })
+          ),
+      })
+    );
+    expect(stale._tag).toBe("err");
+  });
+
+  test("rechecks the current production branch and configured branch", async () => {
+    const result = await recheckDeploymentPolicy(
+      environment({
+        STAGE: "prod",
+        WORKFLOW_RUN_BRANCH: "main",
+        WORKFLOW_RUN_EVENT: "push",
+      }),
+      github()
+    );
+    expect(result).toEqual({ _tag: "ok", value: true });
+    const wrongBranch = await recheckDeploymentPolicy(
+      environment({ STAGE: "prod", WORKFLOW_RUN_BRANCH: "release" }),
+      github()
+    );
+    expect(wrongBranch._tag).toBe("err");
+  });
+
   test("uses the exact entrypoint for a trusted PR head", async () => {
     const written: Record<string, string> = {};
     const result = await outputs(written);
