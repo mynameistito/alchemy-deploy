@@ -5,8 +5,17 @@ const head = Bun.spawnSync(["git", "rev-parse", "--verify", "HEAD"], {
   stderr: "ignore",
   stdout: "ignore",
 });
+const localMain = Bun.spawnSync(["git", "show-ref", "--verify", "--quiet", "refs/heads/main"]);
+const remoteMain = Bun.spawnSync([
+  "git",
+  "show-ref",
+  "--verify",
+  "--quiet",
+  "refs/remotes/origin/main",
+]);
+const hasMain = localMain.exitCode === 0 || remoteMain.exitCode === 0;
 
-if (head.exitCode === 0) {
+if (head.exitCode === 0 && hasMain) {
   const status = Bun.spawnSync(["bunx", "changeset", "status"], {
     stderr: "inherit",
     stdout: "inherit",
@@ -31,7 +40,7 @@ if (head.exitCode === 0) {
     /^---\r?\n["']?alchemy-deploy["']?: major\r?\n---\r?\n/u.test(contents),
   );
   if (initial) {
-    console.info("Validated initial 1.0.0 Changeset in unborn repository.");
+    console.info("Validated initial 1.0.0 Changeset before the first main branch exists.");
   } else {
     console.error("Missing initial major changeset for alchemy-deploy");
     process.exitCode = 1;
