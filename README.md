@@ -1,45 +1,123 @@
 # alchemy-deploy
 
-Shared GitHub deployment automation for Bun/Alchemy Cloudflare Workers. It gates deployments on successful CI for the exact commit, isolates pull-request stages, records GitHub deployments, updates one durable preview comment, and destroys previews before deleting their deployment records.
+Deploy [Alchemy](https://alchemy.run/) Cloudflare Workers from GitHub Actions with:
 
-## Consumer setup
+- Exact-commit CI gating for production and pull-request previews
+- GitHub Deployment records with Cloudflare dashboard links
+- One durable preview comment per pull request
+- Automatic preview cleanup when a pull request closes
 
-1. Copy `templates/consumer-deploy.yml` to `.github/workflows/deploy.yml`.
-2. Replace the action placeholder with the full 40-character SHA of a published v2 release.
-3. Replace `worker-name`, commands, `production-stage`, `production-url`, and `use-adopt`. Set `worker-config` only when the consumer stack reads `ALCHEMY_WORKER_CONFIG`.
-4. Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets.
-5. Ensure `.github/workflows/ci.yml` is named `CI`, runs for `push` and `pull_request`, and checks out the PR head SHA.
-6. Keep workflow-level triggers, permissions, and environment-based concurrency from the template.
+The root action is the recommended integration. It runs the consumer's Alchemy commands, so it works with the project's existing Bun configuration.
 
-Commands receive `STAGE` as an environment variable. Keep quoting in the command itself:
+## Usage
+
+Copy [`templates/consumer-deploy.yml`](templates/consumer-deploy.yml) to `.github/workflows/deploy.yml`, then replace the example values:
 
 ```yaml
-deploy-command: bunx --no-install alchemy deploy --stage "$STAGE" --yes
-destroy-command: bunx --no-install alchemy destroy --stage "$STAGE" --yes
-use-adopt: true
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+  pull_request:
+    types: [closed]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: alchemy-deploy-${{ github.event_name == 'workflow_run' && 'prod' || format('pr-{0}', github.event.pull_request.number) }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      pull-requests: write
+    steps:
+      - name: Run Alchemy deployment
+        uses: mynameistito/alchemy-deploy@dd03a1f03fceabd097c929783947dd82fdcddc72 # v2.1.1
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          worker-name: my-worker
+          deploy-command: bunx --no-install alchemy deploy --stage "$STAGE" --yes
+          destroy-command: bunx --no-install alchemy destroy --stage "$STAGE" --yes
+          production-stage: prod
+          production-url: https://my-worker.example.com
+          use-adopt: false
 ```
 
-`preview-url-pattern` is a URL glob. It must contain `{worker}` and `{stage}`; `*` matches a single URL path segment. Its default matches Alchemy Worker URLs such as `https://worker-pr-42.account.workers.dev`.
+The `CI` workflow must be named `CI`, run for `push` and `pull_request`, and check out the pull request head SHA. Keep the triggers, permissions, and environment-based concurrency from the template.
 
-## Security model
+Commands receive the stage in the `STAGE` environment variable. Quote it inside each command as shown above. The action sets `STAGE` to the configured production stage for production and `pr-<number>` for previews.
 
-- Production runs only from a successful `workflow_run` for `production-branch`.
-- Preview resolution runs trusted default-branch action code through `pull_request_target`, but only same-repository PRs qualify.
-- The resolver polls the configured CI workflow for a completed successful run whose `head_sha` exactly equals the candidate SHA.
-- Deployment checks out that exact SHA without persisted checkout credentials.
-- Closed-PR cleanup checks out the trusted default branch, accepts only `pr-<positive integer>`, and never deletes GitHub deployment evidence unless Alchemy destroy succeeds.
-- Cleanup is expected to be skipped during production and ordinary preview deployment runs because its explicit condition accepts only same-repository `pull_request.closed` events.
-- Fork PRs run consumer CI but never receive deployment credentials.
-- Same-repository PR code executes during preview deployment with Cloudflare credentials. Treat repository write access as secret-bearing access, use a narrowly scoped Cloudflare token, and protect a deployment environment with required reviewer approval when repository trust warrants it.
-- Consumer commands are passed through environment variables rather than interpolated into generated shell source. Inputs are trusted repository configuration, not PR data.
+Add these repository secrets:
 
-## Marketplace action
+| Secret | Description |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | A narrowly scoped Cloudflare API token that can deploy and destroy the Worker. |
+| `CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account that owns the Worker. |
 
-The root action (`mynameistito/alchemy-deploy@<full-v2-release-sha>`) installs Bun, gates the event target, checks out the exact deployment commit, runs Alchemy, creates and completes GitHub Deployments, updates one preview comment, and performs closed-PR cleanup. The reporting implementation remains reusable under `actions/deployment-report`. Inputs are parsed before API calls. API failures preserve operation and HTTP status without exposing the token. Comment lookup and deployment cleanup paginate all GitHub results.
+## Inputs
 
-The caller grants `actions: read`, `contents: read`, `deployments: write`, and `pull-requests: write`; a composite action cannot grant or reduce workflow permissions. Pass `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GITHUB_TOKEN` explicitly as action-step environment values, never `secrets: inherit`.
+| Name | Required | Default | Description |
+| --- | --- | --- | --- |
+| `worker-name` | Yes |  | Base Cloudflare Worker name. |
+| `deploy-command` | Yes |  | Alchemy deploy command. It must use `$STAGE` to select the stage. |
+| `destroy-command` | Yes |  | Alchemy destroy command for preview cleanup. It must use `$STAGE`. |
+| `production-url` | Yes |  | Canonical HTTPS URL for the production deployment. |
+| `production-stage` | No | `prod` | Alchemy stage reserved for production. |
+| `use-adopt` | No | `false` | Append `--adopt` to the deploy command. |
+| `worker-config` | No |  | Optional value passed as `ALCHEMY_WORKER_CONFIG`. |
+| `preview-url-pattern` | No | `https://{worker}-{stage}.*.workers.dev` | URL glob used to find the preview URL in deploy output. It must contain `{worker}` and `{stage}`. `*` matches one URL path segment. |
+| `ci-workflow` | No | `ci.yml` | CI workflow file used for exact-SHA gating. |
+| `production-branch` | No | `main` | Branch allowed to deploy production. |
+| `install-command` | No | `bun install --frozen-lockfile` | Frozen Bun dependency installation command. |
 
-The committed logo is `assets/alchemy.svg`; comments reference its immutable implementation commit.
+## Permissions
+
+The calling workflow must grant the action these permissions:
+
+```yaml
+permissions:
+  actions: read
+  contents: read
+  deployments: write
+  pull-requests: write
+```
+
+Composite actions cannot grant or reduce workflow permissions. Pass `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GITHUB_TOKEN` explicitly as step environment values. Do not use `secrets: inherit`.
+
+## How It Works
+
+- Production deploys run only from a successful `workflow_run` for `production-branch`.
+- Preview deploys run from trusted default-branch action code through `pull_request_target` and only for open, same-repository pull requests.
+- Before deploying, the action finds a successful CI run whose `head_sha` exactly matches the candidate commit.
+- The deployment checks out that exact commit with checkout credentials removed.
+- A successful preview is reported in one durable pull request comment, including the deployment and Cloudflare log links.
+- Closing a same-repository pull request destroys its `pr-<number>` stage before the related GitHub Deployment records are deleted.
+- Fork pull requests can run consumer CI but never receive deployment credentials or preview deployments.
+
+## Security
+
+Same-repository pull request code runs during preview deployment with Cloudflare credentials. Treat repository write access as secret-bearing access, use a narrowly scoped Cloudflare token, and protect a deployment environment with required reviewers when repository trust warrants it.
+
+The action passes configured commands through environment variables instead of interpolating them into generated shell source. Inputs are trusted repository configuration, not pull request data. API failures preserve the operation and HTTP status without exposing tokens.
+
+## Pinning Releases
+
+Consumers should pin the action to the full 40-character commit SHA of a published release:
+
+```yaml
+uses: mynameistito/alchemy-deploy@<full-release-sha> # v2.1.1
+```
+
+To upgrade, review the [release notes](https://github.com/mynameistito/alchemy-deploy/releases), resolve the release tag to its full commit SHA, replace the pin, and run the consumer's complete checks. Do not pin to a branch, mutable alias, abbreviated SHA, or unmerged commit.
 
 ## Development
 
@@ -52,20 +130,6 @@ bun run validate:metadata
 bun run validate:changesets
 ```
 
-Releases use Changesets. The initial changeset promotes `0.0.0` to `1.0.0`, and the release workflow opens the version pull request. When that PR merges, the workflow detects the package version change, creates an immutable `vX.Y.Z` tag at the merge commit, and creates the matching GitHub Release. Existing matching tags/releases are reused; a tag pointing at another commit fails the workflow. Mutable major tags such as `v1` are not created or maintained.
+Run the complete validation suite with `bun run validate`. Releases use [Changesets](https://github.com/changesets/changesets): the release workflow opens the version pull request, then creates an immutable `vX.Y.Z` tag and matching GitHub Release after it merges. Mutable major tags such as `v1` are not maintained.
 
-To upgrade a consumer, review the release notes, resolve the release tag to its full 40-character commit SHA, replace the workflow/action pin, and run the consumer's complete local and GitHub Actions checks. Never pin a consumer to a branch, mutable alias, abbreviated SHA, or unmerged commit.
-
-## GitHub Marketplace
-
-The root `action.yml` is the Marketplace action. The release workflow creates its immutable semver tag and GitHub Release, but GitHub does not expose Marketplace publication through the Releases API or `gh release`. A repository owner must edit each action release in GitHub, accept the Marketplace Developer Agreement when prompted, select **Publish this Action to the GitHub Marketplace**, choose the categories, and confirm with 2FA. Consumers use `mynameistito/alchemy-deploy@<full-release-sha>`; the reusable workflow remains available for compatibility but is not the consumer integration path.
-
-## Action pins
-
-Third-party Actions are pinned to verified commit SHAs resolved from their upstream Git tags:
-
-| Action | Version | SHA | Source |
-| --- | --- | --- | --- |
-| `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | `actions/checkout` tag API |
-| `oven-sh/setup-bun` | `v2.0.2` | `735343b667d3e6f658f44d0eca948eb6282f2b76` | `oven-sh/setup-bun` tag API |
-| `changesets/action` | `v1.5.3` | `e0145edc7d9d8679003495b11f87bd8ef63c0cba` | `changesets/action` tag API |
+The reusable reporting implementation is also available under [`actions/deployment-report`](actions/deployment-report), but the root action is the consumer integration path.
