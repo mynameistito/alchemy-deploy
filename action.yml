@@ -88,7 +88,7 @@ runs:
             exit 1
           fi
           if [ "$WORKFLOW_RUN_EVENT" = "pull_request" ]; then
-            if [ "$PULL_REQUEST_REPOSITORY" != "$REPOSITORY" ] || [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            if [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
               exit 0
             fi
             pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.repo.id, .head.sha] | @tsv')"
