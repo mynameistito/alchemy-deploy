@@ -20,13 +20,39 @@ const resolveBaseRef = (): string | undefined => {
   return remoteMain.exitCode === 0 ? "origin/main" : undefined;
 };
 const baseRef = resolveBaseRef();
+const VERSION = /"version"\s*:\s*"(?<version>\d+\.\d+\.\d+)"/u;
+
+const packageVersion = (contents: string): string | undefined =>
+  contents.match(VERSION)?.groups?.version;
+
+const isGeneratedRelease = async (base: string): Promise<boolean> => {
+  const entries = await readdir(".changeset");
+  if (entries.some((file) => file.endsWith(".md"))) {
+    return false;
+  }
+  const previousPackage = Bun.spawnSync(["git", "show", `${base}:package.json`]);
+  if (previousPackage.exitCode !== 0) {
+    return false;
+  }
+  const currentVersion = packageVersion(await Bun.file("package.json").text());
+  const previousVersion = packageVersion(new TextDecoder().decode(previousPackage.stdout));
+  if (!currentVersion || !previousVersion || currentVersion === previousVersion) {
+    return false;
+  }
+  const changelog = await Bun.file("CHANGELOG.md").text();
+  return changelog.split("\n").some((line) => line.trim() === `## ${currentVersion}`);
+};
 
 if (head.exitCode === 0 && baseRef) {
-  const status = Bun.spawnSync(["bunx", "changeset", "status", `--since=${baseRef}`], {
-    stderr: "inherit",
-    stdout: "inherit",
-  });
-  process.exitCode = status.exitCode;
+  if (await isGeneratedRelease(baseRef)) {
+    console.info("Validated generated Changesets release commit.");
+  } else {
+    const status = Bun.spawnSync(["bunx", "changeset", "status", `--since=${baseRef}`], {
+      stderr: "inherit",
+      stdout: "inherit",
+    });
+    process.exitCode = status.exitCode;
+  }
 } else {
   const config: unknown = parse(await Bun.file(".changeset/config.json").text());
   if (
