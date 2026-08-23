@@ -28,6 +28,14 @@ const stepNamed = (steps: readonly YamlRecord[], name: string): YamlRecord => {
 
 const envFor = (step: YamlRecord) => record.parse(step.env);
 
+const indexOfStep = (steps: readonly YamlRecord[], name: string): number => {
+  const index = steps.findIndex((step) => step.name === name);
+  if (index === -1) {
+    throw new Error(`missing action step: ${name}`);
+  }
+  return index;
+};
+
 describe("composite action contract", () => {
   test("uses TypeScript runtimes for policy, reporting, and URL resolution", async () => {
     const metadata = await action();
@@ -55,6 +63,7 @@ describe("composite action contract", () => {
     const steps = stepsFor(metadata);
     const resolve = stepNamed(steps, "Resolve and gate deployment target");
     const resolveEnv = envFor(resolve);
+    const recheck = stepNamed(steps, "Recheck deployment policy");
     const links = stepNamed(steps, "Resolve deployment links");
     const linksEnv = envFor(links);
 
@@ -90,6 +99,17 @@ describe("composite action contract", () => {
     expect(metadataText).toContain("steps.links.outputs.logs-url");
 
     expect(resolve.id).toBe("resolve");
+    expect(indexOfStep(steps, "Create GitHub deployment")).toBeLessThan(
+      indexOfStep(steps, "Recheck deployment policy")
+    );
+    expect(indexOfStep(steps, "Recheck deployment policy")).toBeLessThan(
+      indexOfStep(steps, "Deploy Alchemy stack")
+    );
+    expect(recheck.if).toBe("steps.resolve.outputs.deploy == 'true'");
+    expect(envFor(recheck).RECHECK).toBe("true");
+    expect(recheck.run).toBe(
+      'bun "$GITHUB_ACTION_PATH/src/actions/deployment-policy-main.ts"'
+    );
     expect(
       steps.some((step) => {
         const values = record.safeParse(step.with);

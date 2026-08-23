@@ -115,6 +115,19 @@ runs:
           exit 1
         fi
 
+    - id: create
+      name: Create GitHub deployment
+      if: steps.resolve.outputs.deploy == 'true'
+      shell: bash
+      env:
+        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        WORKER_NAME: ${{ inputs.worker-name }}
+        MODE: create
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
+
     - name: Recheck deployment policy
       if: steps.resolve.outputs.deploy == 'true'
       shell: bash
@@ -129,21 +142,8 @@ runs:
         PULL_REQUEST_NUMBER: ${{ steps.resolve.outputs.pull-request-number }}
         STAGE: ${{ steps.resolve.outputs.stage }}
         WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
-        RECHECK: true
+        RECHECK: "true"
       run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-policy-main.ts"
-
-    - id: create
-      name: Create GitHub deployment
-      if: steps.resolve.outputs.deploy == 'true'
-      shell: bash
-      env:
-        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
-        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
-        STAGE: ${{ steps.resolve.outputs.stage }}
-        PRODUCTION_STAGE: ${{ inputs.production-stage }}
-        WORKER_NAME: ${{ inputs.worker-name }}
-        MODE: create
-      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
 
     - id: command
       name: Deploy Alchemy stack
