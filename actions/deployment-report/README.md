@@ -5,7 +5,7 @@ The composite action manages GitHub Deployment records and durable pull request 
 Install Bun before invoking the action and pin the action to a released full 40-character commit SHA.
 
 ```yaml
-- uses: mynameistito/alchemy-deploy@<full-40-character-release-sha> # v1.0.0
+- uses: mynameistito/alchemy-deploy/actions/deployment-report@<full-40-character-release-sha> # v2.2.0
   env:
     GITHUB_TOKEN: ${{ github.token }}
   with:

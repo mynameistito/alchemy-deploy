@@ -9,6 +9,8 @@ Deploy [Alchemy](https://alchemy.run/) Cloudflare Workers from GitHub Actions wi
 
 The root action is the recommended integration. It runs the consumer's Alchemy commands, so it works with the project's existing Bun configuration.
 
+The deploy job is a privileged trust boundary: same-repository preview code is checked out and executed with the Cloudflare credentials needed to deploy or destroy the configured Worker. Use a protected environment, required reviewers, or equivalent repository policy for those credentials. The action clears GitHub credentials before consumer commands and does not pass deployment credentials to its setup or dependency-install steps.
+
 ## Usage
 
 Copy [`templates/consumer-deploy.yml`](templates/consumer-deploy.yml) to `.github/workflows/deploy.yml`, then replace the example values:
@@ -27,7 +29,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     concurrency:
-      group: alchemy-deploy-${{ github.event_name == 'workflow_run' && 'prod' || format('pr-{0}', github.event.pull_request.number) }}
+      group: alchemy-deploy-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event.workflow_run.event == 'pull_request' && format('pr-{0}', github.event.workflow_run.pull_requests[0].number) || github.event.workflow_run.event == 'push' && 'prod' || 'invalid' }}
       cancel-in-progress: false
     permissions:
       actions: read
@@ -36,7 +38,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Run Alchemy deployment
-        uses: mynameistito/alchemy-deploy@dd03a1f03fceabd097c929783947dd82fdcddc72 # v2.1.1
+        uses: mynameistito/alchemy-deploy@d42b56ce1471dde5c5654c722b79701a1c60e9eb # v2.2.0
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -112,7 +114,7 @@ The action passes configured commands through environment variables instead of i
 Consumers should pin the action to the full 40-character commit SHA of a published release:
 
 ```yaml
-uses: mynameistito/alchemy-deploy@<full-release-sha> # v2.1.1
+uses: mynameistito/alchemy-deploy@<full-release-sha> # v2.2.0
 ```
 
 To upgrade, review the [release notes](https://github.com/mynameistito/alchemy-deploy/releases), resolve the release tag to its full commit SHA, replace the pin, and run the consumer's complete checks. Do not pin to a branch, mutable alias, abbreviated SHA, or unmerged commit.

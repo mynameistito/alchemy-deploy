@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
+import { z } from "zod";
+
 import { createGitHubApi } from "@/github/github-api.ts";
 
 const servers: Bun.Server<undefined>[] = [];
@@ -115,12 +117,42 @@ describe("GitHub API adapter", () => {
       environment: "prod",
       production: true,
       ref: "a".repeat(40),
+      worker: "worker",
     });
     expect(result._tag).toBe("err");
     if (result._tag === "err") {
       expect(result.error.operation).toBe("create deployment");
       expect(result.error.message).toContain("invalid JSON");
     }
+  });
+
+  test("persists the worker identity in deployment metadata", async () => {
+    let requestBody: { readonly payload: unknown } | undefined;
+    const server = Bun.serve({
+      async fetch(request) {
+        requestBody = z
+          .object({ payload: z.unknown() })
+          .parse(await request.json());
+        return Response.json({ id: 7 }, { status: 201 });
+      },
+      port: 0,
+    });
+    servers.push(server);
+
+    const result = await createGitHubApi({
+      apiUrl: server.url.toString(),
+      owner: "owner",
+      repository: "repo",
+      token: "secret",
+    }).createDeployment({
+      environment: "pr-2",
+      production: false,
+      ref: "a".repeat(40),
+      worker: "worker",
+    });
+
+    expect(result).toEqual({ _tag: "ok", value: 7 });
+    expect(requestBody?.payload).toEqual({ worker: "worker" });
   });
 
   test("refuses cross-origin pagination links", async () => {

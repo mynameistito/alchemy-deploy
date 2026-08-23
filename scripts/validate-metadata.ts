@@ -70,6 +70,7 @@ const visit = (input: YamlValue, file: string, failures: string[]): void => {
 };
 
 const files = [
+  "action.yml",
   ...(await filesIn(".github")),
   ...(await filesIn("actions")),
   ...(await filesIn("templates")),

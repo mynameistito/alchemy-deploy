@@ -90,6 +90,7 @@ const create = async (
     environment: context.stage.value,
     production: context.stage._tag === "production",
     ref: context.commitSha,
+    worker: context.worker,
   });
   if (deployment._tag === "err") {
     return apiFailure(deployment.error);
@@ -180,7 +181,10 @@ const cleanup = async (
   if (deployments._tag === "err") {
     return apiFailure(deployments.error);
   }
-  for (const deployment of deployments.value) {
+  const workerDeployments = deployments.value.filter(
+    (deployment) => deployment.worker === context.worker
+  );
+  for (const deployment of workerDeployments) {
     // oxlint-disable-next-line no-await-in-loop -- Each record must be inactive before that same record is deleted.
     const inactive = await github.createDeploymentStatus({
       deploymentId: deployment.id,
@@ -196,7 +200,7 @@ const cleanup = async (
       return apiFailure(deleted.error);
     }
   }
-  return ok({ deletedDeployments: deployments.value.length });
+  return ok({ deletedDeployments: workerDeployments.length });
 };
 
 /** Execute one deployment-report operation against its GitHub port. */
