@@ -21,6 +21,16 @@ describe("deployment input parsing", () => {
     expect(parseDeploymentStage("pr-1-extra")._tag).toBe("err");
   });
 
+  test("supports a configured production stage without weakening preview isolation", () => {
+    expect(parseDeploymentStage("production", "production")).toEqual({
+      _tag: "ok",
+      value: { _tag: "production", value: "production" },
+    });
+    expect(parseDeploymentStage("prod", "production")._tag).toBe("err");
+    expect(parseDeploymentStage("pr-7", "pr-7")._tag).toBe("err");
+    expect(parseDeploymentStage("production", "production; echo unsafe")._tag).toBe("err");
+  });
+
   test("requires full lowercase SHAs and safe Worker names", () => {
     expect(parseCommitSha("a".repeat(40))._tag).toBe("ok");
     expect(parseCommitSha("A".repeat(40))._tag).toBe("err");

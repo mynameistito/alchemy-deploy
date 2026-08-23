@@ -2,6 +2,7 @@ import { err, ok } from "../shared/result.ts";
 import type { Result } from "../shared/result.ts";
 
 const PREVIEW_STAGE = /^pr-[1-9]\d*$/u;
+const PRODUCTION_STAGE = /^[a-z][a-z0-9_-]{0,62}$/u;
 const SHA = /^[0-9a-f]{40}$/u;
 const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
 
@@ -10,7 +11,7 @@ export type ReportMode = "create" | "complete" | "comment" | "cleanup";
 
 /** A parsed deployment stage. */
 export type DeploymentStage =
-  | { readonly _tag: "production"; readonly value: "prod" }
+  | { readonly _tag: "production"; readonly value: string }
   | { readonly _tag: "preview"; readonly pullRequest: number; readonly value: string };
 
 /** A parsed Git commit SHA. */
@@ -45,8 +46,17 @@ export const parseReportMode = (
 /** Parse a production or isolated pull-request stage. */
 export const parseDeploymentStage = (
   input: string | undefined,
+  productionStage = "prod",
 ): Result<DeploymentStage, DeploymentInputError> => {
-  if (input === "prod") {
+  if (!PRODUCTION_STAGE.test(productionStage) || PREVIEW_STAGE.test(productionStage)) {
+    return err(
+      new DeploymentInputError(
+        "production-stage",
+        "must be a safe stage name distinct from pr-<positive integer>",
+      ),
+    );
+  }
+  if (input === productionStage) {
     return ok({ _tag: "production", value: input });
   }
   if (input && PREVIEW_STAGE.test(input)) {
@@ -54,7 +64,10 @@ export const parseDeploymentStage = (
     return ok({ _tag: "preview", pullRequest, value: input });
   }
   return err(
-    new DeploymentInputError("stage", "must be prod or an isolated pr-<positive integer> stage"),
+    new DeploymentInputError(
+      "stage",
+      `must be ${productionStage} or an isolated pr-<positive integer> stage`,
+    ),
   );
 };
 

@@ -7,6 +7,10 @@ inputs:
   stage:
     description: Deployment environment (`prod` or `pr-<number>`)
     required: true
+  production-stage:
+    description: Production deployment stage
+    default: prod
+    required: false
   worker-name:
     description: Base Cloudflare Worker name
     required: true
@@ -44,6 +48,7 @@ runs:
       env:
         MODE: ${{ inputs.mode }}
         STAGE: ${{ inputs.stage }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
         WORKER_NAME: ${{ inputs.worker-name }}
         DEPLOYMENT_SHA: ${{ inputs.deployment-sha }}
         DEPLOYMENT_ID: ${{ inputs.deployment-id }}

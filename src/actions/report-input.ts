@@ -92,7 +92,7 @@ export const parseReportEnvironment = (
   now: Date,
 ): Result<ParsedReportInput, DeploymentInputError> => {
   const mode = parseReportMode(environment.MODE);
-  const stage = parseDeploymentStage(environment.STAGE);
+  const stage = parseDeploymentStage(environment.STAGE, environment.PRODUCTION_STAGE ?? "prod");
   const commitSha = parseCommitSha(environment.DEPLOYMENT_SHA);
   const worker = parseWorkerName(environment.WORKER_NAME);
   const token = required(environment, "GITHUB_TOKEN");
