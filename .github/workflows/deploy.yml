@@ -233,7 +233,7 @@ jobs:
           fi
       - name: Create GitHub deployment
         id: create
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -292,7 +292,7 @@ jobs:
           echo "deployment-url=$url" >> "$GITHUB_OUTPUT"
       - name: Complete GitHub deployment
         if: always() && steps.create.outputs.deployment-id != ''
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -319,7 +319,7 @@ jobs:
         with:
           bun-version: 1.4.0
       - name: Comment on preview
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -393,7 +393,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Delete preview deployment records
         if: steps.destroy.outcome == 'success'
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
