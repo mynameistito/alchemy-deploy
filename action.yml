@@ -276,7 +276,7 @@ runs:
           while IFS= read -r candidate; do
             candidate="${candidate%[),.;]}"
             case "$candidate" in $pattern) url="$candidate" ;; esac
-          done < <(grep -Eo 'https://[^[:space:]]+' "$RUNNER_TEMP/alchemy-deploy.log" || true)
+          done < <(grep -Eo 'https://[^[:space:]]+' "$RUNNER_TEMP/alchemy-deploy.log" | sed -E 's/[),.;"]+$//' || true)
         fi
         if [[ ! "$url" =~ ^https://[^/[:space:]]+(/.*)?$ ]]; then
           echo '::error::Could not resolve a configured HTTPS deployment URL.'
