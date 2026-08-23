@@ -68,7 +68,7 @@ if (head.exitCode === 0 && baseRef) {
     console.info("Validated generated Changesets release commit.");
   } else {
     const status = Bun.spawnSync(
-      ["bunx", "changeset", "status", `--since=${baseRef}`],
+      ["bunx", "@changesets/cli", "status", `--since=${baseRef}`],
       {
         stderr: "inherit",
         stdout: "inherit",
