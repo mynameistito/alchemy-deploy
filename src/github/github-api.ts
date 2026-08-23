@@ -117,18 +117,19 @@ const parseId = (input: unknown): number | undefined => {
 
 const responseMessage = async (response: Response): Promise<string> => {
   const text = await response.text();
-  if (!text) {
+  const safeText = text.replaceAll(/\p{Cc}/gu, " ").trim();
+  if (!safeText) {
     return response.statusText || "request failed";
   }
   try {
-    const json: unknown = JSON.parse(text);
+    const json: unknown = JSON.parse(safeText);
     if (isObject(json) && typeof json.message === "string") {
       return json.message;
     }
   } catch {
-    return text.slice(0, 300);
+    return safeText.slice(0, 300);
   }
-  return text.slice(0, 300);
+  return safeText.slice(0, 300);
 };
 
 const nextLink = (

@@ -232,7 +232,7 @@ jobs:
           fi
       - name: Create GitHub deployment
         id: create
-        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@cd50d76fa7f6c6bc77fb14fae7ba3df1ca454d51 # v1.0.1 internal component
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -291,7 +291,7 @@ jobs:
           echo "deployment-url=$url" >> "$GITHUB_OUTPUT"
       - name: Complete GitHub deployment
         if: always() && steps.create.outputs.deployment-id != ''
-        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@cd50d76fa7f6c6bc77fb14fae7ba3df1ca454d51 # v1.0.1 internal component
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -329,7 +329,7 @@ jobs:
           logs="https://dash.cloudflare.com/?to=/$ACCOUNT_ID/workers/services/view/$WORKER-$STAGE/production/logs"
           echo "logs-url=$logs" >> "$GITHUB_OUTPUT"
       - name: Comment on preview
-        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@cd50d76fa7f6c6bc77fb14fae7ba3df1ca454d51 # v1.0.1 internal component
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -403,7 +403,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Delete preview deployment records
         if: steps.destroy.outcome == 'success'
-        uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@cd50d76fa7f6c6bc77fb14fae7ba3df1ca454d51 # v1.0.1 internal component
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:

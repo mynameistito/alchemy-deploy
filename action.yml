@@ -1,62 +1,375 @@
-name: Alchemy deployment report
-description: Create, complete, comment on, or clean up a GitHub deployment
+name: Alchemy deployment
+description: Deploy, report, and clean up Alchemy Cloudflare Workers
 inputs:
-  mode:
-    description: One of create, complete, comment, or cleanup
-    required: true
-  stage:
-    description: Deployment environment (`prod` or `pr-<number>`)
-    required: true
-  production-stage:
-    description: Production deployment stage
-    default: prod
-    required: false
   worker-name:
     description: Base Cloudflare Worker name
     required: true
-  deployment-sha:
-    description: Full lowercase commit SHA being deployed
+  deploy-command:
+    description: Command that deploys using the STAGE environment variable
     required: true
-  deployment-id:
-    description: Existing GitHub deployment ID for complete mode
+  destroy-command:
+    description: Command that destroys a preview using the STAGE environment variable
+    required: true
+  production-url:
+    description: Canonical HTTPS production URL
+    required: true
+  production-stage:
+    description: Alchemy stage reserved for production
+    default: prod
     required: false
-  deployment-url:
-    description: Public deployed URL
+  use-adopt:
+    description: Append --adopt to the configured deploy command
+    default: false
     required: false
-  logs-url:
-    description: Stage-specific Cloudflare logs URL
+  worker-config:
+    description: Optional project-specific Worker configuration passed as ALCHEMY_WORKER_CONFIG
+    default: ""
     required: false
-  deploy-outcome:
-    description: Deployment step outcome (`success` or `failure`)
+  preview-url-pattern:
+    description: URL glob containing {worker}, {stage}, and optionally *
+    default: https://{worker}-{stage}.*.workers.dev
     required: false
-  pull-request-number:
-    description: Pull request number for comment mode
+  ci-workflow:
+    description: CI workflow file used for exact-SHA gating
+    default: ci.yml
     required: false
-outputs:
-  deployment-id:
-    description: Deployment ID created in create mode
-    value: ${{ steps.report.outputs.deployment-id }}
-  deleted-deployments:
-    description: Deployment records deleted in cleanup mode
-    value: ${{ steps.report.outputs.deleted-deployments }}
+  production-branch:
+    description: Branch allowed to deploy production
+    default: main
+    required: false
+  install-command:
+    description: Frozen Bun dependency installation command
+    default: bun install --frozen-lockfile
+    required: false
 runs:
   using: composite
   steps:
-    - id: report
-      name: Report deployment
+    - id: resolve
+      name: Resolve and gate deployment target
       shell: bash
       env:
-        MODE: ${{ inputs.mode }}
-        STAGE: ${{ inputs.stage }}
+        CI_WORKFLOW: ${{ inputs.ci-workflow }}
+        DEPLOYMENT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
+        EVENT_NAME: ${{ github.event_name }}
+        EVENT_ACTION: ${{ github.event.action }}
+        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        PULL_REQUEST_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        PULL_REQUEST_SHA: ${{ github.event.pull_request.head.sha }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        REPOSITORY: ${{ github.repository }}
+        WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        WORKFLOW_RUN_EVENT: ${{ github.event.workflow_run.event }}
+      run: |
+        set -euo pipefail
+        echo 'deploy=false' >> "$GITHUB_OUTPUT"
+        echo 'cleanup=false' >> "$GITHUB_OUTPUT"
+        if [ "$EVENT_NAME" = "pull_request" ] && [ "$EVENT_ACTION" = "closed" ]; then
+          if [ "$PULL_REQUEST_REPOSITORY" = "$REPOSITORY" ]; then
+            if [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo '::error::Refusing an invalid pull request number.'
+              exit 1
+            fi
+            echo "stage=pr-$PULL_REQUEST_NUMBER" >> "$GITHUB_OUTPUT"
+            echo 'cleanup=true' >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+        fi
+        if [ "$EVENT_NAME" = "workflow_run" ]; then
+          if [ "$WORKFLOW_RUN_CONCLUSION" != "success" ] || [ "$WORKFLOW_RUN_EVENT" != "push" ] || [ "$WORKFLOW_RUN_BRANCH" != "$PRODUCTION_BRANCH" ]; then
+            exit 0
+          fi
+          if [[ ! "$DEPLOYMENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Refusing an invalid deployment SHA.'
+            exit 1
+          fi
+          branch_sha="$(gh api "repos/$REPOSITORY/branches/$PRODUCTION_BRANCH" --jq '.commit.sha')"
+          if [ "$branch_sha" != "$DEPLOYMENT_SHA" ]; then
+            echo "::warning::Production branch moved to $branch_sha; stale deployment refused."
+            exit 0
+          fi
+          duplicate=false
+          while IFS= read -r deployment_id; do
+            [ -z "$deployment_id" ] && continue
+            state="$(gh api "repos/$REPOSITORY/deployments/$deployment_id/statuses?per_page=1" --jq '.[0].state // empty')"
+            if [ "$state" = "success" ] || [ "$state" = "in_progress" ]; then
+              duplicate=true
+              break
+            fi
+          done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=$PRODUCTION_STAGE&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
+          if [ "$duplicate" = true ]; then
+            echo '::notice::Production deployment is already successful or in progress.'
+            exit 0
+          fi
+          {
+            echo 'deploy=true'
+            echo "deployment-sha=$DEPLOYMENT_SHA"
+            echo 'preview=false'
+            echo "stage=$PRODUCTION_STAGE"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ "$EVENT_NAME" != "pull_request_target" ]; then
+          exit 0
+        fi
+        if [ "$PULL_REQUEST_REPOSITORY" != "$REPOSITORY" ]; then
+          exit 0
+        fi
+        if [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]] || [[ ! "$DEPLOYMENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+          echo '::error::Refusing an invalid preview target.'
+          exit 1
+        fi
+        for attempt in {1..60}; do
+          conclusion="$(gh api "repos/$REPOSITORY/actions/workflows/$CI_WORKFLOW/runs?event=pull_request&head_sha=$DEPLOYMENT_SHA&status=completed&per_page=100" --jq '.workflow_runs | map(select(.head_sha == env.DEPLOYMENT_SHA))[0].conclusion // empty')"
+          if [ "$conclusion" = "success" ]; then break; fi
+          if [ -n "$conclusion" ]; then
+            echo "::warning::CI for the exact commit concluded $conclusion; preview refused."
+            exit 0
+          fi
+          if [ "$attempt" -eq 60 ]; then
+            echo '::warning::Timed out waiting for exact-SHA CI; preview refused.'
+            exit 0
+          fi
+          sleep 10
+        done
+        pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.sha] | @tsv')"
+        IFS=$'\t' read -r current_state current_repository current_sha <<< "$pr_state"
+        if [ "$current_state" != "open" ] || [ "$current_repository" != "$REPOSITORY" ] || [ "$current_sha" != "$DEPLOYMENT_SHA" ]; then
+          echo '::warning::Pull request changed after CI; stale preview refused.'
+          exit 0
+        fi
+        {
+          echo 'deploy=true'
+          echo "deployment-sha=$DEPLOYMENT_SHA"
+          echo 'preview=true'
+          echo "pull-request-number=$PULL_REQUEST_NUMBER"
+          echo "stage=pr-$PULL_REQUEST_NUMBER"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Check out exact consumer commit
+      if: steps.resolve.outputs.deploy == 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ steps.resolve.outputs.deployment-sha }}
+        persist-credentials: false
+
+    - name: Check out trusted default branch for cleanup
+      if: steps.resolve.outputs.cleanup == 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        persist-credentials: false
+
+    - name: Set up Bun
+      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true'
+      uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+      with:
+        bun-version: 1.4.0
+
+    - name: Install dependencies
+      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true'
+      shell: bash
+      env:
+        INSTALL_COMMAND: ${{ inputs.install-command }}
+      run: bash -euo pipefail -c "$INSTALL_COMMAND"
+
+    - name: Require Cloudflare credentials
+      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true'
+      shell: bash
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+      run: |
+        if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+          echo '::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required.'
+          exit 1
+        fi
+
+    - name: Recheck deployment policy
+      if: steps.resolve.outputs.deploy == 'true'
+      shell: bash
+      env:
+        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
+        EVENT_NAME: ${{ github.event_name }}
+        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        REPOSITORY: ${{ github.repository }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      run: |
+        set -euo pipefail
+        if [ "$STAGE" = "$PRODUCTION_STAGE" ]; then
+          if [ "$EVENT_NAME" != 'workflow_run' ] || [ "$WORKFLOW_RUN_BRANCH" != "$PRODUCTION_BRANCH" ]; then
+            echo '::error::Production is restricted to a successful workflow_run from the production branch.'
+            exit 1
+          fi
+          branch_sha="$(gh api "repos/$REPOSITORY/branches/$PRODUCTION_BRANCH" --jq '.commit.sha')"
+          if [ "$branch_sha" != "$DEPLOYMENT_SHA" ]; then
+            echo "::error::Production branch moved to $branch_sha; refusing the stale commit."
+            exit 1
+          fi
+        elif [[ ! "$STAGE" =~ ^pr-[1-9][0-9]*$ ]]; then
+          echo '::error::Refusing an unsafe preview stage.'
+          exit 1
+        fi
+
+    - id: create
+      name: Create GitHub deployment
+      if: steps.resolve.outputs.deploy == 'true'
+      shell: bash
+      env:
+        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
         PRODUCTION_STAGE: ${{ inputs.production-stage }}
         WORKER_NAME: ${{ inputs.worker-name }}
-        DEPLOYMENT_SHA: ${{ inputs.deployment-sha }}
-        DEPLOYMENT_ID: ${{ inputs.deployment-id }}
-        DEPLOYMENT_URL: ${{ inputs.deployment-url }}
-        LOGS_URL: ${{ inputs.logs-url }}
-        DEPLOY_OUTCOME: ${{ inputs.deploy-outcome }}
-        PULL_REQUEST_NUMBER: ${{ inputs.pull-request-number }}
+        MODE: create
       run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
+
+    - id: command
+      name: Deploy Alchemy stack
+      if: steps.resolve.outputs.deploy == 'true'
+      shell: bash
+      continue-on-error: true
+      env:
+        ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        DEPLOY_COMMAND: ${{ inputs.deploy-command }}
+        GITHUB_TOKEN: ""
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        USE_ADOPT: ${{ inputs.use-adopt }}
+      run: |
+        set -o pipefail
+        command="$DEPLOY_COMMAND"
+        if [ "$USE_ADOPT" = 'true' ]; then command="$command --adopt"; fi
+        bash -euo pipefail -c "$command" 2>&1 | tee "$RUNNER_TEMP/alchemy-deploy.log"
+
+    - id: links
+      name: Resolve deployment links
+      if: always() && steps.create.outputs.deployment-id != ''
+      shell: bash
+      env:
+        ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+        OUTCOME: ${{ steps.command.outcome }}
+        PREVIEW_PATTERN: ${{ inputs.preview-url-pattern }}
+        PRODUCTION_URL: ${{ inputs.production-url }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        WORKER: ${{ inputs.worker-name }}
+      run: |
+        set -euo pipefail
+        physical="$WORKER"
+        if [ "$STAGE" != "$PRODUCTION_STAGE" ]; then physical="$WORKER-$STAGE"; fi
+        logs="https://dash.cloudflare.com/?to=/$ACCOUNT_ID/workers/services/view/$physical/production/logs"
+        echo "logs-url=$logs" >> "$GITHUB_OUTPUT"
+        if [ "$OUTCOME" != 'success' ]; then exit 0; fi
+        if [ "$STAGE" = "$PRODUCTION_STAGE" ]; then
+          url="$PRODUCTION_URL"
+        else
+          pattern="${PREVIEW_PATTERN//\{worker\}/$WORKER}"
+          pattern="${pattern//\{stage\}/$STAGE}"
+          url=''
+          while IFS= read -r candidate; do
+            candidate="${candidate%[),.;]}"
+            case "$candidate" in $pattern) url="$candidate" ;; esac
+          done < <(grep -Eo 'https://[^[:space:]"'"'<>]+' "$RUNNER_TEMP/alchemy-deploy.log" || true)
+        fi
+        if [[ ! "$url" =~ ^https://[^/[:space:]]+(/.*)?$ ]]; then
+          echo '::error::Could not resolve a configured HTTPS deployment URL.'
+          exit 1
+        fi
+        echo "deployment-url=$url" >> "$GITHUB_OUTPUT"
+
+    - name: Complete GitHub deployment
+      if: always() && steps.create.outputs.deployment-id != ''
+      shell: bash
+      env:
+        DEPLOYMENT_ID: ${{ steps.create.outputs.deployment-id }}
+        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
+        DEPLOYMENT_URL: ${{ steps.links.outputs.deployment-url }}
+        DEPLOY_OUTCOME: ${{ steps.command.outcome == 'success' && steps.links.outcome == 'success' && 'success' || 'failure' }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        LOGS_URL: ${{ steps.links.outputs.logs-url }}
+        MODE: complete
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        WORKER_NAME: ${{ inputs.worker-name }}
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
+
+    - name: Comment on preview
+      if: always() && steps.resolve.outputs.preview == 'true' && steps.create.outputs.deployment-id != ''
+      shell: bash
+      env:
+        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
+        DEPLOYMENT_URL: ${{ steps.links.outputs.deployment-url }}
+        DEPLOY_OUTCOME: ${{ steps.command.outcome == 'success' && steps.links.outcome == 'success' && 'success' || 'failure' }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        LOGS_URL: ${{ steps.links.outputs.logs-url }}
+        MODE: comment
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        PULL_REQUEST_NUMBER: ${{ steps.resolve.outputs.pull-request-number }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        WORKER_NAME: ${{ inputs.worker-name }}
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
+
+    - id: destroy
+      name: Destroy preview stack
+      if: steps.resolve.outputs.cleanup == 'true'
+      shell: bash
+      continue-on-error: true
+      env:
+        ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        DESTROY_COMMAND: ${{ inputs.destroy-command }}
+        GITHUB_TOKEN: ""
+        STAGE: ${{ steps.resolve.outputs.stage }}
+      run: |
+        set -o pipefail
+        if [[ ! "$STAGE" =~ ^pr-[1-9][0-9]*$ ]]; then
+          echo '::error::Refusing to destroy a non-preview stage.'
+          exit 1
+        fi
+        bash -euo pipefail -c "$DESTROY_COMMAND" 2>&1 | tee "$RUNNER_TEMP/alchemy-destroy.log"
+
+    - name: Preserve failed cleanup diagnostics
+      if: always() && steps.resolve.outputs.cleanup == 'true' && steps.destroy.outcome != 'success'
+      shell: bash
+      env:
+        STAGE: ${{ steps.resolve.outputs.stage }}
+      run: |
+        {
+          echo '## Preview cleanup failed'
+          echo
+          echo "Alchemy destroy failed for \`$STAGE\`. Deployment records were retained as orphan diagnostics."
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Delete preview deployment records
+      if: steps.resolve.outputs.cleanup == 'true' && steps.destroy.outcome == 'success'
+      shell: bash
+      env:
+        DEPLOYMENT_SHA: ${{ github.event.pull_request.head.sha }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        MODE: cleanup
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        WORKER_NAME: ${{ inputs.worker-name }}
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
+
+    - name: Fail after preserving deployment diagnostics
+      if: always() && steps.resolve.outputs.deploy == 'true' && (steps.command.outcome != 'success' || steps.links.outcome != 'success')
+      shell: bash
+      run: exit 1
+
+    - name: Fail after preserving cleanup diagnostics
+      if: always() && steps.resolve.outputs.cleanup == 'true' && steps.destroy.outcome != 'success'
+      shell: bash
+      run: exit 1
+
 branding:
   icon: upload-cloud
   color: green

@@ -6,6 +6,9 @@ const USES = /^(?<action>[^./][^@]*)@(?<ref>.+)$/u;
 const FULL_SHA = /^[0-9a-f]{40}$/u;
 const TEMPLATE_RELEASE_PLACEHOLDER = "REPLACE_WITH_FULL_40_CHARACTER_RELEASE_SHA";
 
+const isRecord = (input: unknown): input is Record<string, unknown> =>
+  typeof input === "object" && input !== null;
+
 const filesIn = async (directory: string): Promise<readonly string[]> => {
   const entries = await readdir(directory, { recursive: true });
   return entries
@@ -64,8 +67,16 @@ const actionMetadata = await Promise.all(
   })),
 );
 for (const { action, actionPath } of actionMetadata) {
-  if (typeof action !== "object" || action === null || !("runs" in action)) {
+  if (!isRecord(action) || !("runs" in action)) {
     failures.push(`${actionPath}: missing runs metadata`);
+    continue;
+  }
+  if (!isRecord(action.runs)) {
+    failures.push(`${actionPath}: runs must be an object`);
+    continue;
+  }
+  if (action.runs.using !== "composite") {
+    failures.push(`${actionPath}: runs.using must be composite`);
   }
 }
 

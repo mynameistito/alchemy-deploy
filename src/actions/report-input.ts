@@ -50,6 +50,24 @@ const outcome = (
   return err(new DeploymentInputError("deploy-outcome", "must be success or failure"));
 };
 
+const secureUrl = (
+  input: string | undefined,
+  field: string,
+): Result<string, DeploymentInputError> => {
+  const value = input?.trim();
+  if (!value || /[\r\n]/u.test(value)) {
+    return err(new DeploymentInputError(field, "must be an HTTPS URL"));
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname
+      ? ok(value)
+      : err(new DeploymentInputError(field, "must be an HTTPS URL"));
+  } catch {
+    return err(new DeploymentInputError(field, "must be an HTTPS URL"));
+  }
+};
+
 const contextFrom = (
   environment: ReportEnvironment,
   stage: DeploymentStage,
@@ -87,6 +105,7 @@ const contextFrom = (
 };
 
 /** Parse all action environment values into a legal report command. */
+// eslint-disable-next-line complexity -- This is the single boundary parser for mode-specific action inputs.
 export const parseReportEnvironment = (
   environment: ReportEnvironment,
   now: Date,
@@ -121,14 +140,20 @@ export const parseReportEnvironment = (
     command = { _tag: mode.value, context: context.value };
   } else {
     const parsedOutcome = outcome(environment.DEPLOY_OUTCOME);
-    const logsUrl = required(environment, "LOGS_URL");
+    const logsUrl = secureUrl(environment.LOGS_URL, "logs-url");
     if (parsedOutcome._tag === "err") {
       return parsedOutcome;
     }
     if (logsUrl._tag === "err") {
       return logsUrl;
     }
-    const deploymentUrl = environment.DEPLOYMENT_URL?.trim() || undefined;
+    const deploymentUrlInput = environment.DEPLOYMENT_URL?.trim();
+    const deploymentUrl = deploymentUrlInput
+      ? secureUrl(deploymentUrlInput, "deployment-url")
+      : ok("");
+    if (deploymentUrl._tag === "err") {
+      return deploymentUrl;
+    }
     if (mode.value === "complete") {
       const deploymentId = positiveInteger(environment.DEPLOYMENT_ID, "deployment-id");
       if (deploymentId._tag === "err") {
@@ -138,7 +163,7 @@ export const parseReportEnvironment = (
         _tag: "complete",
         context: context.value,
         deploymentId: deploymentId.value,
-        ...(deploymentUrl ? { deploymentUrl } : {}),
+        ...(deploymentUrl.value ? { deploymentUrl: deploymentUrl.value } : {}),
         logsUrl: logsUrl.value,
         outcome: parsedOutcome.value,
       };
@@ -150,7 +175,7 @@ export const parseReportEnvironment = (
       command = {
         _tag: "comment",
         context: context.value,
-        ...(deploymentUrl ? { deploymentUrl } : {}),
+        ...(deploymentUrl.value ? { deploymentUrl: deploymentUrl.value } : {}),
         issueNumber: issueNumber.value,
         logsUrl: logsUrl.value,
         outcome: parsedOutcome.value,
