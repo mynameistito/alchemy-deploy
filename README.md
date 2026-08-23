@@ -38,7 +38,7 @@ use-adopt: true
 
 The caller grants `actions: read`, `contents: read`, `deployments: write`, and `pull-requests: write`; each called job narrows that set. Pass only `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, never `secrets: inherit`.
 
-The committed logo is `assets/alchemy.svg`; comments reference the immutable `v1.0.0` path.
+The committed logo is `assets/alchemy.svg`; comments reference its immutable implementation commit.
 
 ## Development
 
@@ -63,4 +63,4 @@ Third-party Actions are pinned to verified commit SHAs resolved from their upstr
 | ------------------- | -------- | ------------------------------------------ | --------------------------- |
 | `actions/checkout`  | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | `actions/checkout` tag API  |
 | `oven-sh/setup-bun` | `v2.0.2` | `735343b667d3e6f658f44d0eca948eb6282f2b76` | `oven-sh/setup-bun` tag API |
-| `changesets/action` | `v1.5.3` | `8eb63fb4cfc7f9643537c7d39d0b68c835012a19` | `changesets/action` tag API |
+| `changesets/action` | `v1.5.3` | `e0145edc7d9d8679003495b11f87bd8ef63c0cba` | `changesets/action` tag API |
