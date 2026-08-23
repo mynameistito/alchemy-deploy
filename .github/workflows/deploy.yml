@@ -54,7 +54,7 @@ jobs:
     steps:
       - name: Run Alchemy deployment policy
         # Keep this pin aligned with the action implementation in this PR.
-        uses: mynameistito/alchemy-deploy@617fc17ceab50a04fccd343326d9fdb97e2d241b
+        uses: mynameistito/alchemy-deploy@1e8c53bdaf41384dee9657b277f57631a983ab9a
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
