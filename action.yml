@@ -202,35 +202,14 @@ runs:
       shell: bash
       env:
         ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+        LOG_PATH: ${{ runner.temp }}/alchemy-deploy.log
         OUTCOME: ${{ steps.command.outcome }}
         PREVIEW_PATTERN: ${{ inputs.preview-url-pattern }}
         PRODUCTION_URL: ${{ inputs.production-url }}
         PRODUCTION_STAGE: ${{ inputs.production-stage }}
         STAGE: ${{ steps.resolve.outputs.stage }}
         WORKER: ${{ inputs.worker-name }}
-      run: |
-        set -euo pipefail
-        physical="$WORKER"
-        if [ "$STAGE" != "$PRODUCTION_STAGE" ]; then physical="$WORKER-$STAGE"; fi
-        logs="https://dash.cloudflare.com/?to=/$ACCOUNT_ID/workers/services/view/$physical/production/logs"
-        echo "logs-url=$logs" >> "$GITHUB_OUTPUT"
-        if [ "$OUTCOME" != 'success' ]; then exit 0; fi
-        if [ "$STAGE" = "$PRODUCTION_STAGE" ]; then
-          url="$PRODUCTION_URL"
-        else
-          pattern="${PREVIEW_PATTERN//\{worker\}/$WORKER}"
-          pattern="${pattern//\{stage\}/$STAGE}"
-          url=''
-          while IFS= read -r candidate; do
-            candidate="${candidate%[),.;]}"
-            case "$candidate" in $pattern) url="$candidate" ;; esac
-          done < <(grep -Eo 'https://[^[:space:]]+' "$RUNNER_TEMP/alchemy-deploy.log" | sed -E 's/[),.;"]+$//' || true)
-        fi
-        if [[ ! "$url" =~ ^https://[^/[:space:]]+(/.*)?$ ]]; then
-          echo '::error::Could not resolve a configured HTTPS deployment URL.'
-          exit 1
-        fi
-        echo "deployment-url=$url" >> "$GITHUB_OUTPUT"
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-url-main.ts"
 
     - name: Complete GitHub deployment
       if: always() && steps.create.outputs.deployment-id != ''
