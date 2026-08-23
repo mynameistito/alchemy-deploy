@@ -104,7 +104,7 @@ describe("deployment orchestration", () => {
     ]);
   });
 
-  test("preserves the deployment ID when link resolution fails", async () => {
+  test("completes a failed deployment when link resolution fails", async () => {
     const { ports, reports } = portsFor({
       links: () => Promise.resolve(err(new Error("URL not found"))),
     });
@@ -113,7 +113,16 @@ describe("deployment orchestration", () => {
     if (result._tag === "err") {
       expect(result.error.deploymentId).toBe(7);
     }
-    expect(reports.map(({ _tag }) => _tag)).toEqual(["create"]);
+    expect(reports).toEqual([
+      { _tag: "create", context: context() },
+      {
+        _tag: "complete",
+        context: context(),
+        deploymentId: 7,
+        logsUrl: "https://github.com/owner/repo/actions/runs/1",
+        outcome: "failure",
+      },
+    ]);
   });
 
   test("reports a failed deploy and retains its deployment ID", async () => {

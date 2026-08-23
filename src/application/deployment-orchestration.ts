@@ -191,6 +191,16 @@ const runDeploy = async (
     await ports.diagnostic(
       `Deployment link resolution failed: ${links.error.message}`
     );
+    const complete = await ports.report({
+      _tag: "complete",
+      context: plan.context,
+      deploymentId,
+      logsUrl: plan.context.runUrl,
+      outcome: "failure",
+    });
+    if (complete._tag === "err") {
+      return reportFailure("deploy", complete, deploymentId);
+    }
     return failure("deploy", links.error, deploymentId);
   }
   const resolvedLinks = links.value;

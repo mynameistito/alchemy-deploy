@@ -311,8 +311,9 @@ describe("composite action contract", () => {
 
   test("clears deployment credentials from trusted setup and install steps", async () => {
     const steps = stepsFor(await action());
+    const policySetup = stepNamed(steps, "Set up Bun for policy resolution");
+    expect(policySetup.with).toEqual({ "bun-version": "1.4.0" });
     for (const name of [
-      "Set up Bun for policy resolution",
       "Install trusted action dependencies",
       "Set up Bun",
       "Install dependencies",
