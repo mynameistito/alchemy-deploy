@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.2
+
+### Patch Changes
+
+- d7b2556: Trim quoted Alchemy output URLs before matching the configured preview URL pattern.
+
 ## 2.0.1
 
 ### Patch Changes
