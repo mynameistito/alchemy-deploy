@@ -115,7 +115,7 @@ jobs:
                 duplicate="true"
                 break
               fi
-            done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=prod&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
+            done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=$PRODUCTION_STAGE&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
             if [ "$duplicate" = "true" ]; then
               echo "::notice::Production deployment for $DEPLOYMENT_SHA is already successful or in progress."
               echo "deploy=false" >> "$GITHUB_OUTPUT"
@@ -173,7 +173,7 @@ jobs:
       contents: read
       deployments: write
     outputs:
-      deployment-created: ${{ steps.create.outcome == 'success' }}
+      deployment-created: ${{ steps.create.outputs.deployment-id != '' }}
       deployment-url: ${{ steps.links.outputs.deployment-url }}
       deploy-outcome: ${{ steps.command.outcome == 'success' && steps.links.outcome == 'success' && 'success' || 'failure' }}
       logs-url: ${{ steps.links.outputs.logs-url }}
@@ -233,7 +233,7 @@ jobs:
           fi
       - name: Create GitHub deployment
         id: create
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@c8640f1df20812b904f5d3f9ee50c3fb1cb7e7c8 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -258,7 +258,7 @@ jobs:
           bash -euo pipefail -c "$command" 2>&1 | tee "$RUNNER_TEMP/alchemy-deploy.log"
       - name: Resolve deployment links
         id: links
-        if: always() && steps.create.outcome == 'success'
+        if: always() && steps.create.outputs.deployment-id != ''
         shell: bash
         env:
           ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -291,8 +291,8 @@ jobs:
           fi
           echo "deployment-url=$url" >> "$GITHUB_OUTPUT"
       - name: Complete GitHub deployment
-        if: always() && steps.create.outcome == 'success'
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@c8640f1df20812b904f5d3f9ee50c3fb1cb7e7c8 # v1.0.0 implementation
+        if: always() && steps.create.outputs.deployment-id != ''
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -319,7 +319,7 @@ jobs:
         with:
           bun-version: 1.4.0
       - name: Comment on preview
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@c8640f1df20812b904f5d3f9ee50c3fb1cb7e7c8 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -393,7 +393,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Delete preview deployment records
         if: steps.destroy.outcome == 'success'
-        uses: mynameistito/alchemy-deploy/actions/deployment-report@c8640f1df20812b904f5d3f9ee50c3fb1cb7e7c8 # v1.0.0 implementation
+        uses: mynameistito/alchemy-deploy/actions/deployment-report@847e67f267079a89383f20338f2c56db5b5072d1 # v1.0.0 implementation
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
