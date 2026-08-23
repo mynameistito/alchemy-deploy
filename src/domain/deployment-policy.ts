@@ -11,6 +11,7 @@ export interface PolicyInput {
   readonly kind: "pull_request" | "workflow_run";
   readonly number?: number;
   readonly productionBranch?: string;
+  readonly productionStage?: string;
   readonly pullRequest?: {
     readonly headRepositoryId: number;
     readonly number: number;
@@ -59,7 +60,11 @@ export const deploymentPolicy = (input: PolicyInput): PolicyDecision => {
   if (input.event === "push") {
     return input.branch === input.productionBranch &&
       input.currentMainSha === input.sha
-      ? { kind: "deploy", sha: input.sha, stage: "prod" }
+      ? {
+          kind: "deploy",
+          sha: input.sha,
+          stage: input.productionStage ?? "prod",
+        }
       : { kind: "noop", reason: "stale production CI" };
   }
   if (input.event !== "pull_request") {
