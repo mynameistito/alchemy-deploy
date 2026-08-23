@@ -176,7 +176,6 @@ jobs:
       deployment-created: ${{ steps.create.outputs.deployment-id != '' }}
       deployment-url: ${{ steps.links.outputs.deployment-url }}
       deploy-outcome: ${{ steps.command.outcome == 'success' && steps.links.outcome == 'success' && 'success' || 'failure' }}
-      logs-url: ${{ steps.links.outputs.logs-url }}
     env:
       DEPLOYMENT_SHA: ${{ needs.resolve.outputs.deployment-sha }}
       STAGE: ${{ needs.resolve.outputs.stage }}
@@ -318,6 +317,17 @@ jobs:
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
           bun-version: 1.4.0
+      - name: Resolve preview logs link
+        id: preview-links
+        shell: bash
+        env:
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGE: ${{ needs.resolve.outputs.stage }}
+          WORKER: ${{ inputs.worker-name }}
+        run: |
+          set -euo pipefail
+          logs="https://dash.cloudflare.com/?to=/$ACCOUNT_ID/workers/services/view/$WORKER-$STAGE/production/logs"
+          echo "logs-url=$logs" >> "$GITHUB_OUTPUT"
       - name: Comment on preview
         uses: mynameistito/alchemy-deploy@0020eec58960552a8d77cb939b5a95f1e2974684 # v1.0.0 implementation
         env:
@@ -329,7 +339,7 @@ jobs:
           worker-name: ${{ inputs.worker-name }}
           deployment-sha: ${{ needs.resolve.outputs.deployment-sha }}
           deployment-url: ${{ needs.deploy.outputs.deployment-url }}
-          logs-url: ${{ needs.deploy.outputs.logs-url }}
+          logs-url: ${{ steps.preview-links.outputs.logs-url }}
           deploy-outcome: ${{ needs.deploy.outputs.deploy-outcome }}
           pull-request-number: ${{ needs.resolve.outputs.pull-request-number }}
 
