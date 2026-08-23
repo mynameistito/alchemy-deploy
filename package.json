@@ -1,6 +1,6 @@
 {
   "name": "alchemy-deploy",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Secure reusable GitHub deployment workflow and reporting action for Alchemy on Cloudflare",
   "license": "MIT",
   "files": [
