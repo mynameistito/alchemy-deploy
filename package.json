@@ -1,0 +1,31 @@
+{
+  "name": "alchemy-deploy",
+  "version": "0.0.0",
+  "description": "Secure reusable GitHub deployment workflow and reporting action for Alchemy on Cloudflare",
+  "license": "MIT",
+  "files": [
+    "actions",
+    "assets",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/domain/deployment.ts"
+  },
+  "scripts": {
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.29.7",
+    "@types/bun": "1.4.0",
+    "oxfmt": "0.64.0",
+    "oxlint": "1.79.0",
+    "typescript": "6.0.2",
+    "ultracite": "7.10.6",
+    "yaml": "2.8.1"
+  },
+  "packageManager": "bun@1.4.0"
+}
