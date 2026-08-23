@@ -28,6 +28,8 @@ on:
       CLOUDFLARE_API_TOKEN: { required: true }
       CLOUDFLARE_ACCOUNT_ID: { required: true }
 
+permissions: {}
+
 concurrency:
   group: >-
     alchemy-deploy-${{
@@ -39,17 +41,20 @@ concurrency:
 
 jobs:
   deploy:
+    name: Deploy Alchemy stack
     if: >-
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'pull_request' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == inputs.production-branch))) || (github.event_name == 'pull_request' && github.event.action == 'closed')
     runs-on: ubuntu-latest
     permissions:
+      # Read workflow results and contents, create deployments, and update PR reports.
       actions: read
       contents: read
       deployments: write
       pull-requests: write
     steps:
       - name: Run Alchemy deployment policy
-        uses: ./action.yml
+        # Keep this pin aligned with the action implementation in this PR.
+        uses: mynameistito/alchemy-deploy@617fc17ceab50a04fccd343326d9fdb97e2d241b
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

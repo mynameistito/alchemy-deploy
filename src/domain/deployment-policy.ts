@@ -62,6 +62,9 @@ export const deploymentPolicy = (input: PolicyInput): PolicyDecision => {
       ? { kind: "deploy", sha: input.sha, stage: "prod" }
       : { kind: "noop", reason: "stale production CI" };
   }
+  if (input.event !== "pull_request") {
+    return { kind: "noop", reason: "unsupported workflow event" };
+  }
   const { pullRequest } = input;
   if (!pullRequest) {
     return { kind: "noop", reason: "pull request was not resolved" };

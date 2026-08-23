@@ -68,6 +68,17 @@ runs:
         set -euo pipefail
         echo 'deploy=false' >> "$GITHUB_OUTPUT"
         echo 'cleanup=false' >> "$GITHUB_OUTPUT"
+        has_active_deployment() {
+          local environment="$1"
+          while IFS= read -r deployment_id; do
+            [ -z "$deployment_id" ] && continue
+            state="$(gh api "repos/$REPOSITORY/deployments/$deployment_id/statuses?per_page=1" --jq '.[0].state // empty')"
+            if [ "$state" = "success" ] || [ "$state" = "in_progress" ]; then
+              return 0
+            fi
+          done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=$environment&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
+          return 1
+        }
         if [ "$EVENT_NAME" = "pull_request" ] && [ "$EVENT_ACTION" = "closed" ]; then
           if [ "$PULL_REQUEST_REPOSITORY" = "$REPOSITORY" ] && [ "$PULL_REQUEST_HEAD_REPOSITORY_ID" = "$REPOSITORY_ID" ]; then
             if [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
@@ -94,16 +105,7 @@ runs:
             pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.repo.id, .head.sha] | @tsv')"
             IFS=$'\t' read -r current_state current_repository current_repository_id current_sha <<< "$pr_state"
             if [ "$current_state" = "open" ] && [ "$current_repository" = "$REPOSITORY" ] && [ "$current_repository_id" = "$REPOSITORY_ID" ] && [ "$current_sha" = "$DEPLOYMENT_SHA" ]; then
-              duplicate=false
-              while IFS= read -r deployment_id; do
-                [ -z "$deployment_id" ] && continue
-                state="$(gh api "repos/$REPOSITORY/deployments/$deployment_id/statuses?per_page=1" --jq '.[0].state // empty')"
-                if [ "$state" = "success" ] || [ "$state" = "in_progress" ]; then
-                  duplicate=true
-                  break
-                fi
-              done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=pr-$PULL_REQUEST_NUMBER&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
-              if [ "$duplicate" = true ]; then
+              if has_active_deployment "pr-$PULL_REQUEST_NUMBER"; then
                 echo '::notice::Preview deployment is already successful or in progress.'
                 exit 0
               fi
@@ -125,16 +127,7 @@ runs:
             echo "::warning::Production branch moved to $branch_sha; stale deployment refused."
             exit 0
           fi
-          duplicate=false
-          while IFS= read -r deployment_id; do
-            [ -z "$deployment_id" ] && continue
-            state="$(gh api "repos/$REPOSITORY/deployments/$deployment_id/statuses?per_page=1" --jq '.[0].state // empty')"
-            if [ "$state" = "success" ] || [ "$state" = "in_progress" ]; then
-              duplicate=true
-              break
-            fi
-          done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=$PRODUCTION_STAGE&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
-          if [ "$duplicate" = true ]; then
+          if has_active_deployment "$PRODUCTION_STAGE"; then
             echo '::notice::Production deployment is already successful or in progress.'
             exit 0
           fi

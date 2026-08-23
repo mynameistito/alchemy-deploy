@@ -73,6 +73,18 @@ describe("deployment policy", () => {
     ).toBe("noop");
   });
 
+  test("refuses unsupported workflow events", () => {
+    expect(
+      deploymentPolicy({
+        conclusion: "success",
+        kind: "workflow_run",
+        productionBranch: "main",
+        pullRequest: pr(),
+        sha,
+      }).kind
+    ).toBe("noop");
+  });
+
   test("gates production on the current main SHA", () => {
     const input = {
       branch: "main",
@@ -125,6 +137,10 @@ describe("deployment policy", () => {
 
   test("makes duplicate and independent identities explicit", () => {
     expect(hasActiveDeployment([{ sha, state: "success" }], sha)).toBeTrue();
+    expect(
+      hasActiveDeployment([{ sha, state: "in_progress" }], sha)
+    ).toBeTrue();
+    expect(hasActiveDeployment([{ sha, state: "failure" }], sha)).toBeFalse();
     expect(
       hasActiveDeployment([{ sha: "b".repeat(40), state: "success" }], sha)
     ).toBeFalse();
