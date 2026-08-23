@@ -15,6 +15,24 @@ export interface GitHubComment {
 export interface GitHubDeployment {
   /** Database identifier. */
   readonly id: number;
+  /** Commit SHA associated with the deployment. */
+  readonly sha?: string;
+  /** Latest deployment status. */
+  readonly state?: string;
+}
+
+/** Pull request values required by deployment policy. */
+export interface GitHubPullRequest {
+  /** Pull request head repository identifier. */
+  readonly headRepositoryId: number;
+  /** Pull request number. */
+  readonly number: number;
+  /** Pull request base repository identifier. */
+  readonly repositoryId: number;
+  /** Pull request head commit SHA. */
+  readonly sha: string;
+  /** Pull request state. */
+  readonly state: "open" | "closed";
 }
 
 /** An expected GitHub API failure with a safe response summary. */
@@ -67,6 +85,22 @@ type DeploymentState = "in_progress" | "success" | "failure" | "inactive";
 
 /** Operations consumed by deployment reporting. */
 export interface GitHubDeploymentPort {
+  /** Resolve a workflow file to its immutable GitHub workflow identifier. */
+  readonly getWorkflowId?: (
+    workflow: string
+  ) => Promise<Result<number, GitHubApiError>>;
+  /** Resolve a pull request's current trusted head. */
+  readonly getPullRequest?: (
+    issueNumber: number
+  ) => Promise<Result<GitHubPullRequest, GitHubApiError>>;
+  /** Resolve the current commit on a branch. */
+  readonly getBranchSha?: (
+    branch: string
+  ) => Promise<Result<string, GitHubApiError>>;
+  /** List deployment records and their latest statuses. */
+  readonly listDeployments: (
+    environment: string
+  ) => Promise<Result<readonly GitHubDeployment[], GitHubApiError>>;
   /** Create a deployment and return its identifier. */
   readonly createDeployment: (
     request: CreateDeploymentRequest
@@ -76,9 +110,6 @@ export interface GitHubDeploymentPort {
     request: CreateDeploymentStatusRequest
   ) => Promise<Result<true, GitHubApiError>>;
   /** List every deployment in an environment. */
-  readonly listDeployments: (
-    environment: string
-  ) => Promise<Result<readonly GitHubDeployment[], GitHubApiError>>;
   /** Delete a deployment record. */
   readonly deleteDeployment: (
     deploymentId: number
@@ -97,6 +128,19 @@ export interface GitHubDeploymentPort {
     commentId: number,
     body: string
   ) => Promise<Result<true, GitHubApiError>>;
+}
+
+/** Read operations required by the deployment-policy action boundary. */
+export interface GitHubPolicyPort extends GitHubDeploymentPort {
+  readonly getWorkflowId: (
+    workflow: string
+  ) => Promise<Result<number, GitHubApiError>>;
+  readonly getPullRequest: (
+    issueNumber: number
+  ) => Promise<Result<GitHubPullRequest, GitHubApiError>>;
+  readonly getBranchSha: (
+    branch: string
+  ) => Promise<Result<string, GitHubApiError>>;
 }
 
 /** Configuration for the GitHub REST adapter. */
@@ -185,7 +229,7 @@ const nextLink = (
 export const createGitHubApi = (
   config: GitHubApiConfig,
   fetcher: typeof fetch = fetch
-): GitHubDeploymentPort => {
+): GitHubPolicyPort => {
   const apiOrigin = new URL(config.apiUrl).origin;
   const root = `${config.apiUrl.replace(/\/$/u, "")}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}`;
 
@@ -385,6 +429,108 @@ export const createGitHubApi = (
       );
       return response._tag === "ok" ? ok(true) : response;
     },
+    getBranchSha: async (branch) => {
+      const response = await request(
+        "get branch",
+        `${root}/branches/${encodeURIComponent(branch)}`
+      );
+      if (response._tag === "err") {
+        return response;
+      }
+      const json = githubObjectSchema.safeParse(await response.value.json());
+      const commit = json.success
+        ? githubObjectSchema.safeParse(json.data.commit)
+        : undefined;
+      const sha = commit?.success
+        ? z.string().length(40).safeParse(commit.data.sha)
+        : undefined;
+      return sha?.success && sha.data.length === 40
+        ? ok(sha.data)
+        : err(
+            new GitHubApiError(
+              "get branch",
+              response.value.status,
+              "response did not contain a branch SHA"
+            )
+          );
+    },
+    getPullRequest: async (issueNumber) => {
+      const response = await request(
+        "get pull request",
+        `${root}/pulls/${issueNumber}`
+      );
+      if (response._tag === "err") {
+        return response;
+      }
+      const json = githubObjectSchema.safeParse(await response.value.json());
+      if (!json.success) {
+        return err(
+          new GitHubApiError(
+            "get pull request",
+            response.value.status,
+            "response was not an object"
+          )
+        );
+      }
+      const head = githubObjectSchema.safeParse(json.data.head);
+      const base = githubObjectSchema.safeParse(json.data.base);
+      const headRepository = head.success
+        ? githubObjectSchema.safeParse(head.data.repo)
+        : undefined;
+      const baseRepository = base.success
+        ? githubObjectSchema.safeParse(base.data.repo)
+        : undefined;
+      const number = z.number().int().positive().safeParse(json.data.number);
+      const state = z.enum(["open", "closed"]).safeParse(json.data.state);
+      const sha = head.success
+        ? z.string().length(40).safeParse(head.data.sha)
+        : undefined;
+      const headRepositoryId = headRepository?.success
+        ? parseId(headRepository.data)
+        : undefined;
+      const repositoryId = baseRepository?.success
+        ? parseId(baseRepository.data)
+        : undefined;
+      return number.success &&
+        state.success &&
+        sha?.success &&
+        headRepositoryId &&
+        repositoryId
+        ? ok({
+            headRepositoryId,
+            number: number.data,
+            repositoryId,
+            sha: sha.data,
+            state: state.data,
+          })
+        : err(
+            new GitHubApiError(
+              "get pull request",
+              response.value.status,
+              "response did not match the expected shape"
+            )
+          );
+    },
+    getWorkflowId: async (workflow) => {
+      const response = await request(
+        "get workflow",
+        `${config.apiUrl.replace(/\/$/u, "")}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}/actions/workflows/${encodeURIComponent(workflow)}`
+      );
+      if (response._tag === "err") {
+        return response;
+      }
+      const json = githubObjectSchema.safeParse(await response.value.json());
+      const id = json.success ? parseId(json.data) : undefined;
+      return id
+        ? ok(id)
+        : err(
+            new GitHubApiError(
+              "get workflow",
+              response.value.status,
+              "response did not contain a workflow ID"
+            )
+          );
+    },
     listComments: (issueNumber) =>
       paginate(
         "list comments",
@@ -398,15 +544,48 @@ export const createGitHubApi = (
           return body.success ? { body: body.data, id } : undefined;
         }
       ),
-    listDeployments: (environment) =>
-      paginate(
+    listDeployments: async (environment) => {
+      const deployments = await paginate(
         "list deployments",
         `${root}/deployments?environment=${encodeURIComponent(environment)}&per_page=100`,
         (input) => {
           const id = parseId(input);
-          return id ? { id } : undefined;
+          const sha = z.string().length(40).safeParse(input.sha);
+          return id && sha.success ? { id, sha: sha.data } : undefined;
         }
-      ),
+      );
+      if (deployments._tag === "err") {
+        return deployments;
+      }
+      const values: GitHubDeployment[] = [];
+      for (const deployment of deployments.value) {
+        // oxlint-disable-next-line no-await-in-loop -- The latest status belongs to this deployment.
+        const response = await request(
+          "list deployment statuses",
+          `${root}/deployments/${deployment.id}/statuses?per_page=1`
+        );
+        if (response._tag === "err") {
+          return response;
+        }
+        // oxlint-disable-next-line no-await-in-loop -- The response is for the current deployment.
+        const json: unknown = await response.value.json();
+        const statuses = z.array(githubObjectSchema).safeParse(json);
+        const state = statuses.success
+          ? z.string().safeParse(statuses.data[0]?.state)
+          : undefined;
+        if (!state?.success) {
+          return err(
+            new GitHubApiError(
+              "list deployment statuses",
+              response.value.status,
+              "response did not contain a deployment status"
+            )
+          );
+        }
+        values.push({ ...deployment, state: state.data });
+      }
+      return ok(values);
+    },
     updateComment: async (commentId, body) => {
       const response = await write(
         "update comment",
