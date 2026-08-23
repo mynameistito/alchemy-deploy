@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0
+
+### Minor Changes
+
+- cadcc6a: Harden preview and production deployment gating by resolving pull requests from trusted workflow runs, validating exact head SHAs, isolating preview concurrency, and preventing duplicate deployment identities.
+
 ## 2.1.2
 
 ### Patch Changes
