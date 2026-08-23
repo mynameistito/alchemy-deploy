@@ -53,9 +53,9 @@ runs:
         EVENT_NAME: ${{ github.event_name }}
         EVENT_ACTION: ${{ github.event.action }}
         GH_TOKEN: ${{ env.GITHUB_TOKEN }}
-        PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
-        PULL_REQUEST_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-        PULL_REQUEST_SHA: ${{ github.event.pull_request.head.sha }}
+        PULL_REQUEST_NUMBER: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || github.event.pull_request.number }}
+        PULL_REQUEST_REPOSITORY: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.repo.full_name || github.event.pull_request.head.repo.full_name }}
+        PULL_REQUEST_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.sha || github.event.pull_request.head.sha }}
         PRODUCTION_BRANCH: ${{ inputs.production-branch }}
         PRODUCTION_STAGE: ${{ inputs.production-stage }}
         REPOSITORY: ${{ github.repository }}
@@ -78,12 +78,32 @@ runs:
           exit 0
         fi
         if [ "$EVENT_NAME" = "workflow_run" ]; then
-          if [ "$WORKFLOW_RUN_CONCLUSION" != "success" ] || [ "$WORKFLOW_RUN_EVENT" != "push" ] || [ "$WORKFLOW_RUN_BRANCH" != "$PRODUCTION_BRANCH" ]; then
+          if [ "$WORKFLOW_RUN_CONCLUSION" != "success" ]; then
             exit 0
           fi
           if [[ ! "$DEPLOYMENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo '::error::Refusing an invalid deployment SHA.'
             exit 1
+          fi
+          if [ "$WORKFLOW_RUN_EVENT" = "pull_request" ]; then
+            if [ "$PULL_REQUEST_REPOSITORY" != "$REPOSITORY" ] || [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              exit 0
+            fi
+            pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.sha] | @tsv')"
+            IFS=$'\t' read -r current_state current_repository current_sha <<< "$pr_state"
+            if [ "$current_state" = "open" ] && [ "$current_repository" = "$REPOSITORY" ] && [ "$current_sha" = "$DEPLOYMENT_SHA" ]; then
+              {
+                echo 'deploy=true'
+                echo "deployment-sha=$DEPLOYMENT_SHA"
+                echo 'preview=true'
+                echo "pull-request-number=$PULL_REQUEST_NUMBER"
+                echo "stage=pr-$PULL_REQUEST_NUMBER"
+              } >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          if [ "$WORKFLOW_RUN_EVENT" != "push" ] || [ "$WORKFLOW_RUN_BRANCH" != "$PRODUCTION_BRANCH" ]; then
+            exit 0
           fi
           branch_sha="$(gh api "repos/$REPOSITORY/branches/$PRODUCTION_BRANCH" --jq '.commit.sha')"
           if [ "$branch_sha" != "$DEPLOYMENT_SHA" ]; then
@@ -111,42 +131,7 @@ runs:
           } >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        if [ "$EVENT_NAME" != "pull_request_target" ]; then
-          exit 0
-        fi
-        if [ "$PULL_REQUEST_REPOSITORY" != "$REPOSITORY" ]; then
-          exit 0
-        fi
-        if [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]] || [[ ! "$DEPLOYMENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-          echo '::error::Refusing an invalid preview target.'
-          exit 1
-        fi
-        for attempt in {1..60}; do
-          conclusion="$(gh api "repos/$REPOSITORY/actions/workflows/$CI_WORKFLOW/runs?event=pull_request&head_sha=$DEPLOYMENT_SHA&status=completed&per_page=100" --jq '.workflow_runs | map(select(.head_sha == env.DEPLOYMENT_SHA))[0].conclusion // empty')"
-          if [ "$conclusion" = "success" ]; then break; fi
-          if [ -n "$conclusion" ]; then
-            echo "::warning::CI for the exact commit concluded $conclusion; preview refused."
-            exit 0
-          fi
-          if [ "$attempt" -eq 60 ]; then
-            echo '::warning::Timed out waiting for exact-SHA CI; preview refused.'
-            exit 0
-          fi
-          sleep 10
-        done
-        pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.sha] | @tsv')"
-        IFS=$'\t' read -r current_state current_repository current_sha <<< "$pr_state"
-        if [ "$current_state" != "open" ] || [ "$current_repository" != "$REPOSITORY" ] || [ "$current_sha" != "$DEPLOYMENT_SHA" ]; then
-          echo '::warning::Pull request changed after CI; stale preview refused.'
-          exit 0
-        fi
-        {
-          echo 'deploy=true'
-          echo "deployment-sha=$DEPLOYMENT_SHA"
-          echo 'preview=true'
-          echo "pull-request-number=$PULL_REQUEST_NUMBER"
-          echo "stage=pr-$PULL_REQUEST_NUMBER"
-        } >> "$GITHUB_OUTPUT"
+        exit 0
 
     - name: Check out exact consumer commit
       if: steps.resolve.outputs.deploy == 'true'
