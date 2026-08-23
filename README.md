@@ -55,6 +55,10 @@ Releases use Changesets. The initial changeset promotes `0.0.0` to `1.0.0`, and 
 
 To upgrade a consumer, review the release notes, resolve the release tag to its full 40-character commit SHA, replace the workflow/action pin, and run the consumer's complete local and GitHub Actions checks. Never pin a consumer to a branch, mutable alias, abbreviated SHA, or unmerged commit.
 
+## GitHub Marketplace
+
+The root `action.yml` is the Marketplace action. The release workflow creates its immutable semver tag and GitHub Release, but GitHub does not expose Marketplace publication through the Releases API or `gh release`. A repository owner must edit each action release in GitHub, accept the Marketplace Developer Agreement when prompted, select **Publish this Action to the GitHub Marketplace**, choose the categories, and confirm with 2FA. Consumers may then use `mynameistito/alchemy-deploy@<full-release-sha>` while the reusable workflow remains available at `.github/workflows/deploy.yml` on the same release SHA.
+
 ## Action pins
 
 Third-party Actions are pinned to verified commit SHAs resolved from their upstream Git tags:
