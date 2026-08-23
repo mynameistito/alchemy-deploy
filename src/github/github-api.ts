@@ -113,7 +113,6 @@ export interface GitHubDeploymentPort {
   readonly createDeploymentStatus: (
     request: CreateDeploymentStatusRequest
   ) => Promise<Result<true, GitHubApiError>>;
-  /** List every deployment in an environment. */
   /** Delete a deployment record. */
   readonly deleteDeployment: (
     deploymentId: number
