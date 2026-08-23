@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1
+
+### Patch Changes
+
+- 1e7eb24: Keep policy resolution independent of the consumer workspace and terminally report deployments when link resolution fails.
+
 ## 2.3.0
 
 ### Minor Changes
