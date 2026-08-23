@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { parse } from "yaml";
 import { z } from "zod";
@@ -12,6 +14,12 @@ const getCommandLines = (steps: readonly YamlRecord[]): string[] =>
 
 const action = async () =>
   record.parse(parse(await readFile("action.yml", "utf-8")));
+
+const reportAction = async () =>
+  record.parse(
+    parse(await readFile("actions/deployment-report/action.yml", "utf-8"))
+  );
+const actionPathExpression = ["$", "{{ github.action_path }}"].join("");
 
 const stepsFor = (metadata: YamlRecord) => {
   const runs = record.parse(metadata.runs);
@@ -37,6 +45,82 @@ const indexOfStep = (steps: readonly YamlRecord[], name: string): number => {
 };
 
 describe("composite action contract", () => {
+  test("installs dependencies from the action repository", async () => {
+    const metadata = await action();
+    const steps = stepsFor(metadata);
+    const install = stepNamed(steps, "Install trusted action dependencies");
+
+    expect(install["working-directory"]).toBe(actionPathExpression);
+    expect(install.run).toBe("bun install --frozen-lockfile --ignore-scripts");
+
+    const reportMetadata = await reportAction();
+    const reportSteps = stepsFor(reportMetadata);
+    const reportSetup = stepNamed(
+      reportSteps,
+      "Set up Bun for deployment reporting"
+    );
+    const reportInstall = stepNamed(
+      reportSteps,
+      "Install trusted action dependencies"
+    );
+    expect(reportSetup.uses).toBe(
+      "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
+    );
+    expect(reportSetup.with).toEqual({ "bun-version": "1.4.0" });
+    expect(reportInstall["working-directory"]).toBe(
+      `${actionPathExpression}/../..`
+    );
+    expect(
+      indexOfStep(reportSteps, "Set up Bun for deployment reporting")
+    ).toBeLessThan(indexOfStep(reportSteps, "Report deployment"));
+  });
+
+  test("starts both entrypoints from a clean workspace", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "alchemy-deploy-"));
+    const repository = path.resolve(".");
+    const policyEntrypoint = path.join(
+      repository,
+      "src",
+      "actions",
+      "deployment-policy-main.ts"
+    );
+    const reportEntrypoint = path.join(
+      repository,
+      "src",
+      "actions",
+      "deployment-report-main.ts"
+    );
+
+    const run = async (
+      entrypoint: string,
+      environment: Record<string, string>
+    ) => {
+      const process = Bun.spawn(["bun", entrypoint], {
+        cwd: directory,
+        env: { ...Bun.env, ...environment },
+        stderr: "pipe",
+        stdout: "pipe",
+      });
+      const [exitCode, stderr] = await Promise.all([
+        process.exited,
+        new Response(process.stderr).text(),
+      ]);
+      return { exitCode, stderr };
+    };
+
+    try {
+      const policy = await run(policyEntrypoint, { GITHUB_TOKEN: "" });
+      const report = await run(reportEntrypoint, { MODE: "invalid" });
+
+      expect(policy.exitCode).toBe(1);
+      expect(policy.stderr).toContain("GITHUB_TOKEN is required");
+      expect(report.exitCode).toBe(1);
+      expect(report.stderr).toContain("Invalid deployment-report input");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   test("uses TypeScript runtimes for policy, reporting, and URL resolution", async () => {
     const metadata = await action();
     const steps = stepsFor(metadata);
