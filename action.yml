@@ -55,10 +55,13 @@ runs:
         GH_TOKEN: ${{ env.GITHUB_TOKEN }}
         PULL_REQUEST_NUMBER: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || github.event.pull_request.number }}
         PULL_REQUEST_REPOSITORY: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.repo.full_name || github.event.pull_request.head.repo.full_name }}
+        PULL_REQUEST_HEAD_REPOSITORY_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.repo.id || github.event.pull_request.head.repo.id }}
         PULL_REQUEST_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.sha || github.event.pull_request.head.sha }}
         PRODUCTION_BRANCH: ${{ inputs.production-branch }}
         PRODUCTION_STAGE: ${{ inputs.production-stage }}
         REPOSITORY: ${{ github.repository }}
+        REPOSITORY_ID: ${{ github.repository_id }}
+        WORKFLOW_RUN_ID: ${{ github.event.workflow_run.workflow_id }}
         WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
         WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         WORKFLOW_RUN_EVENT: ${{ github.event.workflow_run.event }}
@@ -66,8 +69,19 @@ runs:
         set -euo pipefail
         echo 'deploy=false' >> "$GITHUB_OUTPUT"
         echo 'cleanup=false' >> "$GITHUB_OUTPUT"
+        has_active_deployment() {
+          local environment="$1"
+          while IFS= read -r deployment_id; do
+            [ -z "$deployment_id" ] && continue
+            state="$(gh api "repos/$REPOSITORY/deployments/$deployment_id/statuses?per_page=1" --jq '.[0].state // empty')"
+            if [ "$state" = "success" ] || [ "$state" = "in_progress" ]; then
+              return 0
+            fi
+          done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=$environment&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
+          return 1
+        }
         if [ "$EVENT_NAME" = "pull_request" ] && [ "$EVENT_ACTION" = "closed" ]; then
-          if [ "$PULL_REQUEST_REPOSITORY" = "$REPOSITORY" ]; then
+          if [ "$PULL_REQUEST_REPOSITORY" = "$REPOSITORY" ] && [ "$PULL_REQUEST_HEAD_REPOSITORY_ID" = "$REPOSITORY_ID" ]; then
             if [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
               echo '::error::Refusing an invalid pull request number.'
               exit 1
@@ -81,17 +95,26 @@ runs:
           if [ "$WORKFLOW_RUN_CONCLUSION" != "success" ]; then
             exit 0
           fi
+          configured_workflow_id="$(gh api "repos/$REPOSITORY/actions/workflows/$CI_WORKFLOW" --jq '.id')"
+          if [ "$WORKFLOW_RUN_ID" != "$configured_workflow_id" ]; then
+            echo '::notice::Workflow run did not come from the configured CI workflow.'
+            exit 0
+          fi
           if [[ ! "$DEPLOYMENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo '::error::Refusing an invalid deployment SHA.'
             exit 1
           fi
           if [ "$WORKFLOW_RUN_EVENT" = "pull_request" ]; then
-            if [ "$PULL_REQUEST_REPOSITORY" != "$REPOSITORY" ] || [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            if [[ ! "$PULL_REQUEST_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
               exit 0
             fi
-            pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.sha] | @tsv')"
-            IFS=$'\t' read -r current_state current_repository current_sha <<< "$pr_state"
-            if [ "$current_state" = "open" ] && [ "$current_repository" = "$REPOSITORY" ] && [ "$current_sha" = "$DEPLOYMENT_SHA" ]; then
+            pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.repo.id, .head.sha] | @tsv')"
+            IFS=$'\t' read -r current_state current_repository current_repository_id current_sha <<< "$pr_state"
+            if [ "$current_state" = "open" ] && [ "$current_repository" = "$REPOSITORY" ] && [ "$current_repository_id" = "$REPOSITORY_ID" ] && [ "$current_sha" = "$DEPLOYMENT_SHA" ]; then
+              if has_active_deployment "pr-$PULL_REQUEST_NUMBER"; then
+                echo '::notice::Preview deployment is already successful or in progress.'
+                exit 0
+              fi
               {
                 echo 'deploy=true'
                 echo "deployment-sha=$DEPLOYMENT_SHA"
@@ -110,16 +133,7 @@ runs:
             echo "::warning::Production branch moved to $branch_sha; stale deployment refused."
             exit 0
           fi
-          duplicate=false
-          while IFS= read -r deployment_id; do
-            [ -z "$deployment_id" ] && continue
-            state="$(gh api "repos/$REPOSITORY/deployments/$deployment_id/statuses?per_page=1" --jq '.[0].state // empty')"
-            if [ "$state" = "success" ] || [ "$state" = "in_progress" ]; then
-              duplicate=true
-              break
-            fi
-          done < <(gh api --paginate "repos/$REPOSITORY/deployments?environment=$PRODUCTION_STAGE&ref=$DEPLOYMENT_SHA&per_page=100" --jq '.[].id')
-          if [ "$duplicate" = true ]; then
+          if has_active_deployment "$PRODUCTION_STAGE"; then
             echo '::notice::Production deployment is already successful or in progress.'
             exit 0
           fi
@@ -182,6 +196,8 @@ runs:
         PRODUCTION_BRANCH: ${{ inputs.production-branch }}
         PRODUCTION_STAGE: ${{ inputs.production-stage }}
         REPOSITORY: ${{ github.repository }}
+        REPOSITORY_ID: ${{ github.repository_id }}
+        PULL_REQUEST_NUMBER: ${{ steps.resolve.outputs.pull-request-number }}
         STAGE: ${{ steps.resolve.outputs.stage }}
         WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
       run: |
@@ -214,9 +230,27 @@ runs:
         MODE: create
       run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
 
+    - name: Recheck PR head before Cloudflare deploy
+      if: steps.resolve.outputs.deploy == 'true' && steps.resolve.outputs.preview == 'true'
+      shell: bash
+      env:
+        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
+        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PULL_REQUEST_NUMBER: ${{ steps.resolve.outputs.pull-request-number }}
+        REPOSITORY: ${{ github.repository }}
+        REPOSITORY_ID: ${{ github.repository_id }}
+      run: |
+        set -euo pipefail
+        pr_state="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.state, .head.repo.full_name, .head.repo.id, .head.sha] | @tsv')"
+        IFS=$'\t' read -r current_state current_repository current_repository_id current_sha <<< "$pr_state"
+        if [ "$current_state" != "open" ] || [ "$current_repository" != "$REPOSITORY" ] || [ "$current_repository_id" != "$REPOSITORY_ID" ] || [ "$current_sha" != "$DEPLOYMENT_SHA" ]; then
+          echo '::error::Pull request changed after deployment record creation; refusing stale preview.'
+          exit 1
+        fi
+
     - id: command
       name: Deploy Alchemy stack
-      if: steps.resolve.outputs.deploy == 'true'
+      if: success() && steps.resolve.outputs.deploy == 'true'
       shell: bash
       continue-on-error: true
       env:
