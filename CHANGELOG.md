@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.3.0
+
+### Minor Changes
+
+- f6c8de4: Run deployment URL and Cloudflare logs link resolution through the tested TypeScript action runtime instead of duplicated shell parsing.
+- 4f14e4e: Run deployment policy resolution through the TypeScript action runtime boundary instead of duplicated shell policy logic.
+
+### Patch Changes
+
+- 0fa367c: Verify published action runtime paths and release gates locally.
+- 9e7ad9f: Clean documented action contracts and remove a stale GitHub adapter comment.
+- d010fa5: Isolate privileged deployment execution and scope preview cleanup by worker identity.
+- 5566084: Provision reproducible Bun runtimes and action-local dependencies for both composite actions.
+- 301566a: Keep final deployment freshness checks on the TypeScript runtime path and add composite-action contract coverage.
+- afc9ec3: Move deployment lifecycle sequencing behind a typed TypeScript orchestration boundary while preserving consumer command semantics.
+
 ## 2.2.0
 
 ### Minor Changes
