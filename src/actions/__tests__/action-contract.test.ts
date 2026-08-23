@@ -183,13 +183,14 @@ describe("composite action contract", () => {
     expect(metadataText).toContain("steps.links.outputs.logs-url");
 
     expect(resolve.id).toBe("resolve");
-    expect(indexOfStep(steps, "Create GitHub deployment")).toBeLessThan(
-      indexOfStep(steps, "Recheck deployment policy")
+    expect(indexOfStep(steps, "Recheck deployment policy")).toBeLessThan(
+      indexOfStep(steps, "Create GitHub deployment")
     );
     expect(indexOfStep(steps, "Recheck deployment policy")).toBeLessThan(
       indexOfStep(steps, "Deploy Alchemy stack")
     );
     expect(recheck.if).toBe("steps.resolve.outputs.deploy == 'true'");
+    expect(recheck.id).toBe("recheck");
     expect(envFor(recheck).RECHECK).toBe("true");
     expect(recheck.run).toBe(
       'bun "$GITHUB_ACTION_PATH/src/actions/deployment-policy-main.ts"'
@@ -219,6 +220,21 @@ describe("composite action contract", () => {
       expect(environment.CLOUDFLARE_ACCOUNT_ID).toContain(
         "env.CLOUDFLARE_ACCOUNT_ID"
       );
+    }
+  });
+
+  test("clears deployment credentials from trusted setup and install steps", async () => {
+    const steps = stepsFor(await action());
+    for (const name of [
+      "Set up Bun for policy resolution",
+      "Install trusted action dependencies",
+      "Set up Bun",
+      "Install dependencies",
+    ]) {
+      const environment = envFor(stepNamed(steps, name));
+      expect(environment.GITHUB_TOKEN).toBe("");
+      expect(environment.CLOUDFLARE_ACCOUNT_ID).toBe("");
+      expect(environment.CLOUDFLARE_API_TOKEN).toBe("");
     }
   });
 });

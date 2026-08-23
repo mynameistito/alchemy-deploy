@@ -48,10 +48,18 @@ runs:
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
         bun-version-file: package.json
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ""
+        CLOUDFLARE_API_TOKEN: ""
+        GITHUB_TOKEN: ""
 
     - name: Install trusted action dependencies
       shell: bash
       working-directory: ${{ github.action_path }}
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ""
+        CLOUDFLARE_API_TOKEN: ""
+        GITHUB_TOKEN: ""
       run: bun install --frozen-lockfile --ignore-scripts
 
     - id: resolve
@@ -96,11 +104,18 @@ runs:
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
         bun-version-file: package.json
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ""
+        CLOUDFLARE_API_TOKEN: ""
+        GITHUB_TOKEN: ""
 
     - name: Install dependencies
       if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true'
       shell: bash
       env:
+        CLOUDFLARE_ACCOUNT_ID: ""
+        CLOUDFLARE_API_TOKEN: ""
+        GITHUB_TOKEN: ""
         INSTALL_COMMAND: ${{ inputs.install-command }}
       run: bash -euo pipefail -c "$INSTALL_COMMAND"
 
@@ -116,20 +131,8 @@ runs:
           exit 1
         fi
 
-    - id: create
-      name: Create GitHub deployment
-      if: steps.resolve.outputs.deploy == 'true'
-      shell: bash
-      env:
-        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
-        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
-        STAGE: ${{ steps.resolve.outputs.stage }}
-        PRODUCTION_STAGE: ${{ inputs.production-stage }}
-        WORKER_NAME: ${{ inputs.worker-name }}
-        MODE: create
-      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
-
-    - name: Recheck deployment policy
+    - id: recheck
+      name: Recheck deployment policy
       if: steps.resolve.outputs.deploy == 'true'
       shell: bash
       env:
@@ -145,6 +148,29 @@ runs:
         WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
         RECHECK: "true"
       run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-policy-main.ts"
+
+    - id: create
+      name: Create GitHub deployment
+      if: steps.resolve.outputs.deploy == 'true'
+      shell: bash
+      env:
+        DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deployment-sha }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        STAGE: ${{ steps.resolve.outputs.stage }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        WORKER_NAME: ${{ inputs.worker-name }}
+        MODE: create
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-report-main.ts"
+
+    - name: Preserve stale deployment diagnostics
+      if: always() && steps.resolve.outputs.deploy == 'true' && steps.recheck.outcome != 'success'
+      shell: bash
+      run: |
+        {
+          echo '## Deployment blocked by stale policy recheck'
+          echo
+          echo 'No GitHub deployment record was created because the trusted commit or deployment policy changed.'
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - id: command
       name: Deploy Alchemy stack

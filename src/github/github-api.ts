@@ -19,6 +19,8 @@ export interface GitHubDeployment {
   readonly sha?: string;
   /** Latest deployment status. */
   readonly state?: string;
+  /** Worker identity persisted by this action for isolated cleanup. */
+  readonly worker?: string;
 }
 
 /** Pull request values required by deployment policy. */
@@ -65,6 +67,8 @@ export interface CreateDeploymentRequest {
   readonly ref: string;
   /** Whether this is production. */
   readonly production: boolean;
+  /** Worker identity used to scope cleanup. */
+  readonly worker: string;
 }
 
 /** Values needed to create a deployment status. */
@@ -369,6 +373,7 @@ export const createGitHubApi = (
         auto_merge: false,
         description: `Alchemy ${deployment.environment} deployment`,
         environment: deployment.environment,
+        payload: { worker: deployment.worker },
         production_environment: deployment.production,
         ref: deployment.ref,
         required_contexts: [],
@@ -551,7 +556,17 @@ export const createGitHubApi = (
         (input) => {
           const id = parseId(input);
           const sha = z.string().length(40).safeParse(input.sha);
-          return id && sha.success ? { id, sha: sha.data } : undefined;
+          if (id === undefined || !sha.success) {
+            return;
+          }
+          const payload = githubObjectSchema.safeParse(input.payload);
+          const worker = payload.success
+            ? z.string().safeParse(payload.data.worker)
+            : null;
+          const deployment = { id, sha: sha.data };
+          return worker?.success
+            ? { ...deployment, worker: worker.data }
+            : deployment;
         }
       );
       if (deployments._tag === "err") {

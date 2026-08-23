@@ -45,7 +45,11 @@ describe("deployment cleanup", () => {
         return ok(true);
       },
       listComments: async () => ok([]),
-      listDeployments: async () => ok([{ id: 1 }, { id: 2 }]),
+      listDeployments: async () =>
+        ok([
+          { id: 1, worker: "worker" },
+          { id: 2, worker: "worker" },
+        ]),
       updateComment: async () => ok(true),
     };
     const result = await runDeploymentReport(github, {
@@ -59,6 +63,37 @@ describe("deployment cleanup", () => {
       "inactive:2",
       "delete:2",
     ]);
+  });
+
+  test("only cleans records belonging to the configured worker", async () => {
+    const operations: string[] = [];
+    const github: GitHubDeploymentPort = {
+      createComment: async () => ok(true),
+      createDeployment: async () => ok(1),
+      createDeploymentStatus: async ({ deploymentId, state }) => {
+        operations.push(`${state}:${deploymentId}`);
+        return ok(true);
+      },
+      deleteDeployment: async (id) => {
+        operations.push(`delete:${id}`);
+        return ok(true);
+      },
+      listComments: async () => ok([]),
+      listDeployments: async () =>
+        ok([
+          { id: 1, worker: "worker" },
+          { id: 2, worker: "other-worker" },
+        ]),
+      updateComment: async () => ok(true),
+    };
+
+    const result = await runDeploymentReport(github, {
+      _tag: "cleanup",
+      context: contextFor("pr-8"),
+    });
+
+    expect(result).toEqual({ _tag: "ok", value: { deletedDeployments: 1 } });
+    expect(operations).toEqual(["inactive:1", "delete:1"]);
   });
 
   test("refuses production cleanup before listing deployments", async () => {

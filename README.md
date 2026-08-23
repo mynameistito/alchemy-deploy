@@ -9,6 +9,8 @@ Deploy [Alchemy](https://alchemy.run/) Cloudflare Workers from GitHub Actions wi
 
 The root action is the recommended integration. It runs the consumer's Alchemy commands, so it works with the project's existing Bun configuration.
 
+The deploy job is a privileged trust boundary: same-repository preview code is checked out and executed with the Cloudflare credentials needed to deploy or destroy the configured Worker. Use a protected environment, required reviewers, or equivalent repository policy for those credentials. The action clears GitHub credentials before consumer commands and does not pass deployment credentials to its setup or dependency-install steps.
+
 ## Usage
 
 Copy [`templates/consumer-deploy.yml`](templates/consumer-deploy.yml) to `.github/workflows/deploy.yml`, then replace the example values:
