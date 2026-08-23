@@ -61,6 +61,7 @@ runs:
         PRODUCTION_STAGE: ${{ inputs.production-stage }}
         REPOSITORY: ${{ github.repository }}
         REPOSITORY_ID: ${{ github.repository_id }}
+        WORKFLOW_RUN_ID: ${{ github.event.workflow_run.workflow_id }}
         WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
         WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         WORKFLOW_RUN_EVENT: ${{ github.event.workflow_run.event }}
@@ -92,6 +93,11 @@ runs:
         fi
         if [ "$EVENT_NAME" = "workflow_run" ]; then
           if [ "$WORKFLOW_RUN_CONCLUSION" != "success" ]; then
+            exit 0
+          fi
+          configured_workflow_id="$(gh api "repos/$REPOSITORY/actions/workflows/$CI_WORKFLOW" --jq '.id')"
+          if [ "$WORKFLOW_RUN_ID" != "$configured_workflow_id" ]; then
+            echo '::notice::Workflow run did not come from the configured CI workflow.'
             exit 0
           fi
           if [[ ! "$DEPLOYMENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then

@@ -20,8 +20,6 @@ on:
   workflow_run:
     workflows: [CI]
     types: [completed]
-  pull_request_target:
-    types: [opened, reopened, synchronize]
   pull_request:
     types: [closed]
 
@@ -96,7 +94,7 @@ Composite actions cannot grant or reduce workflow permissions. Pass `CLOUDFLARE_
 ## How It Works
 
 - Production deploys run only from a successful `workflow_run` for `production-branch`.
-- Preview deploys run from trusted default-branch action code through `pull_request_target` and only for open, same-repository pull requests.
+- Preview deploys run from trusted default-branch action code through `workflow_run` and only for open, same-repository pull requests.
 - Before deploying, the action finds a successful CI run whose `head_sha` exactly matches the candidate commit.
 - The deployment checks out that exact commit with checkout credentials removed.
 - A successful preview is reported in one durable pull request comment, including the deployment and Cloudflare log links.
