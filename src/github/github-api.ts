@@ -1,5 +1,7 @@
-import { err, ok } from "../shared/result.ts";
-import type { Result } from "../shared/result.ts";
+import { z } from "zod";
+
+import { err, ok } from "@/shared/result.ts";
+import type { Result } from "@/shared/result.ts";
 
 /** A GitHub issue comment used by deployment reporting. */
 export interface GitHubComment {
@@ -24,7 +26,12 @@ export class GitHubApiError extends Error {
   readonly status: number | undefined;
 
   /** Create a classified GitHub API error. */
-  constructor(operation: string, status: number | undefined, message: string, cause?: unknown) {
+  constructor(
+    operation: string,
+    status: number | undefined,
+    message: string,
+    cause?: unknown
+  ) {
     super(`${operation}: ${message}`);
     this.cause = cause;
     this.operation = operation;
@@ -53,38 +60,42 @@ export interface CreateDeploymentStatusRequest {
   /** Diagnostics URL. */
   readonly logUrl?: string;
   /** GitHub deployment state. */
-  readonly state: "in_progress" | "success" | "failure" | "inactive";
+  readonly state: DeploymentState;
 }
+
+type DeploymentState = "in_progress" | "success" | "failure" | "inactive";
 
 /** Operations consumed by deployment reporting. */
 export interface GitHubDeploymentPort {
   /** Create a deployment and return its identifier. */
   readonly createDeployment: (
-    request: CreateDeploymentRequest,
+    request: CreateDeploymentRequest
   ) => Promise<Result<number, GitHubApiError>>;
   /** Create a status for a deployment. */
   readonly createDeploymentStatus: (
-    request: CreateDeploymentStatusRequest,
+    request: CreateDeploymentStatusRequest
   ) => Promise<Result<true, GitHubApiError>>;
   /** List every deployment in an environment. */
   readonly listDeployments: (
-    environment: string,
+    environment: string
   ) => Promise<Result<readonly GitHubDeployment[], GitHubApiError>>;
   /** Delete a deployment record. */
-  readonly deleteDeployment: (deploymentId: number) => Promise<Result<true, GitHubApiError>>;
+  readonly deleteDeployment: (
+    deploymentId: number
+  ) => Promise<Result<true, GitHubApiError>>;
   /** List every comment on an issue or pull request. */
   readonly listComments: (
-    issueNumber: number,
+    issueNumber: number
   ) => Promise<Result<readonly GitHubComment[], GitHubApiError>>;
   /** Create a pull-request comment. */
   readonly createComment: (
     issueNumber: number,
-    body: string,
+    body: string
   ) => Promise<Result<true, GitHubApiError>>;
   /** Update a pull-request comment. */
   readonly updateComment: (
     commentId: number,
-    body: string,
+    body: string
   ) => Promise<Result<true, GitHubApiError>>;
 }
 
@@ -100,19 +111,17 @@ export interface GitHubApiConfig {
   readonly token: string;
 }
 
-const isObject = (input: unknown): input is Readonly<Record<string, unknown>> =>
-  typeof input === "object" && input !== null && !Array.isArray(input);
+const githubObjectSchema = z.object({}).catchall(z.json());
+type GitHubObject = z.infer<typeof githubObjectSchema>;
+type GitHubRequestBody = z.infer<typeof githubObjectSchema>;
+const CREATE_DEPLOYMENT = "create deployment";
 
-const parseId = (input: unknown): number | undefined => {
-  if (
-    !isObject(input) ||
-    typeof input.id !== "number" ||
-    !Number.isSafeInteger(input.id) ||
-    input.id <= 0
-  ) {
+const parseId = (input: GitHubObject): number | undefined => {
+  const id = z.number().int().positive().safeParse(input.id);
+  if (!id.success || !Number.isSafeInteger(id.data)) {
     return undefined;
   }
-  return input.id;
+  return id.data;
 };
 
 const responseMessage = async (response: Response): Promise<string> => {
@@ -122,9 +131,12 @@ const responseMessage = async (response: Response): Promise<string> => {
     return response.statusText || "request failed";
   }
   try {
-    const json: unknown = JSON.parse(safeText);
-    if (isObject(json) && typeof json.message === "string") {
-      return json.message;
+    const json = githubObjectSchema.safeParse(JSON.parse(safeText));
+    const message = json.success
+      ? z.string().safeParse(json.data.message)
+      : undefined;
+    if (message?.success) {
+      return message.data;
     }
   } catch {
     return safeText.slice(0, 300);
@@ -134,7 +146,7 @@ const responseMessage = async (response: Response): Promise<string> => {
 
 const nextLink = (
   header: string | null,
-  apiOrigin: string,
+  apiOrigin: string
 ): Result<{ readonly url?: string }, GitHubApiError> => {
   if (!header) {
     return ok({});
@@ -149,13 +161,20 @@ const nextLink = (
             new GitHubApiError(
               "paginate",
               undefined,
-              `refusing cross-origin next link to ${next.origin}`,
-            ),
+              `refusing cross-origin next link to ${next.origin}`
+            )
           );
         }
         return ok({ url: next.href });
       } catch (error) {
-        return err(new GitHubApiError("paginate", undefined, "invalid next link URL", error));
+        return err(
+          new GitHubApiError(
+            "paginate",
+            undefined,
+            "invalid next link URL",
+            error
+          )
+        );
       }
     }
   }
@@ -165,7 +184,7 @@ const nextLink = (
 /** Create a REST-backed GitHub deployment adapter. */
 export const createGitHubApi = (
   config: GitHubApiConfig,
-  fetcher: typeof fetch = fetch,
+  fetcher: typeof fetch = fetch
 ): GitHubDeploymentPort => {
   const apiOrigin = new URL(config.apiUrl).origin;
   const root = `${config.apiUrl.replace(/\/$/u, "")}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}`;
@@ -173,7 +192,7 @@ export const createGitHubApi = (
   const request = async (
     operation: string,
     url: string,
-    init: RequestInit = {},
+    init: RequestInit = {}
   ): Promise<Result<Response, GitHubApiError>> => {
     try {
       const response = await fetcher(url, {
@@ -186,11 +205,24 @@ export const createGitHubApi = (
         },
       });
       if (!response.ok) {
-        return err(new GitHubApiError(operation, response.status, await responseMessage(response)));
+        return err(
+          new GitHubApiError(
+            operation,
+            response.status,
+            await responseMessage(response)
+          )
+        );
       }
       return ok(response);
     } catch (error) {
-      return err(new GitHubApiError(operation, undefined, "network request failed", error));
+      return err(
+        new GitHubApiError(
+          operation,
+          undefined,
+          "network request failed",
+          error
+        )
+      );
     }
   };
 
@@ -198,17 +230,19 @@ export const createGitHubApi = (
     operation: string,
     path: string,
     method: "POST" | "PATCH" | "DELETE",
-    body?: Readonly<Record<string, unknown>>,
-  ): Promise<Result<Response, GitHubApiError>> =>
-    request(operation, `${root}${path}`, {
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      method,
-    });
+    body?: GitHubRequestBody
+  ): Promise<Result<Response, GitHubApiError>> => {
+    const init: RequestInit = { method };
+    if (body) {
+      init.body = JSON.stringify(body);
+    }
+    return request(operation, `${root}${path}`, init);
+  };
 
   const paginate = async <T>(
     operation: string,
     initialUrl: string,
-    parse: (input: unknown) => T | undefined,
+    parse: (input: GitHubObject) => T | undefined
   ): Promise<Result<readonly T[], GitHubApiError>> => {
     const values: T[] = [];
     let url: string | undefined = initialUrl;
@@ -223,22 +257,43 @@ export const createGitHubApi = (
         // oxlint-disable-next-line no-await-in-loop -- Parsing belongs to the sequential pagination request.
         json = await response.value.json();
       } catch (error) {
-        return err(new GitHubApiError(operation, response.value.status, "invalid JSON", error));
+        return err(
+          new GitHubApiError(
+            operation,
+            response.value.status,
+            "invalid JSON",
+            error
+          )
+        );
       }
       if (!Array.isArray(json)) {
         return err(
-          new GitHubApiError(operation, response.value.status, "expected an array response"),
+          new GitHubApiError(
+            operation,
+            response.value.status,
+            "expected an array response"
+          )
         );
       }
       for (const item of json) {
-        const parsed = parse(item);
+        const object = githubObjectSchema.safeParse(item);
+        if (!object.success) {
+          return err(
+            new GitHubApiError(
+              operation,
+              response.value.status,
+              "response item was not an object"
+            )
+          );
+        }
+        const parsed = parse(object.data);
         if (!parsed) {
           return err(
             new GitHubApiError(
               operation,
               response.value.status,
-              "response item did not match the expected shape",
-            ),
+              "response item did not match the expected shape"
+            )
           );
         }
         values.push(parsed);
@@ -255,13 +310,18 @@ export const createGitHubApi = (
 
   return {
     createComment: async (issueNumber, body) => {
-      const response = await write("create comment", `/issues/${issueNumber}/comments`, "POST", {
-        body,
-      });
+      const response = await write(
+        "create comment",
+        `/issues/${issueNumber}/comments`,
+        "POST",
+        {
+          body,
+        }
+      );
       return response._tag === "ok" ? ok(true) : response;
     },
     createDeployment: async (deployment) => {
-      const response = await write("create deployment", "/deployments", "POST", {
+      const response = await write(CREATE_DEPLOYMENT, "/deployments", "POST", {
         auto_merge: false,
         description: `Alchemy ${deployment.environment} deployment`,
         environment: deployment.environment,
@@ -278,47 +338,66 @@ export const createGitHubApi = (
         json = await response.value.json();
       } catch (error) {
         return err(
-          new GitHubApiError("create deployment", response.value.status, "invalid JSON", error),
+          new GitHubApiError(
+            CREATE_DEPLOYMENT,
+            response.value.status,
+            "invalid JSON",
+            error
+          )
         );
       }
-      const id = parseId(json);
+      const object = githubObjectSchema.safeParse(json);
+      const id = object.success ? parseId(object.data) : undefined;
       return id
         ? ok(id)
         : err(
             new GitHubApiError(
-              "create deployment",
+              CREATE_DEPLOYMENT,
               response.value.status,
-              "response did not contain a numeric id",
-            ),
+              "response did not contain a numeric id"
+            )
           );
     },
     createDeploymentStatus: async (status) => {
+      const statusBody = {
+        description: status.description,
+        state: status.state,
+      };
+      if (status.environmentUrl) {
+        Object.assign(statusBody, { environment_url: status.environmentUrl });
+      }
+      if (status.logUrl) {
+        Object.assign(statusBody, { log_url: status.logUrl });
+      }
       const response = await write(
         "create deployment status",
         `/deployments/${status.deploymentId}/statuses`,
         "POST",
-        {
-          description: status.description,
-          ...(status.environmentUrl ? { environment_url: status.environmentUrl } : {}),
-          ...(status.logUrl ? { log_url: status.logUrl } : {}),
-          state: status.state,
-        },
+        statusBody
       );
       return response._tag === "ok" ? ok(true) : response;
     },
     deleteDeployment: async (deploymentId) => {
-      const response = await write("delete deployment", `/deployments/${deploymentId}`, "DELETE");
+      const response = await write(
+        "delete deployment",
+        `/deployments/${deploymentId}`,
+        "DELETE"
+      );
       return response._tag === "ok" ? ok(true) : response;
     },
     listComments: (issueNumber) =>
-      paginate("list comments", `${root}/issues/${issueNumber}/comments?per_page=100`, (input) => {
-        const id = parseId(input);
-        if (!id || !isObject(input)) {
-          return;
+      paginate(
+        "list comments",
+        `${root}/issues/${issueNumber}/comments?per_page=100`,
+        (input) => {
+          const id = parseId(input);
+          if (!id) {
+            return;
+          }
+          const body = z.string().nullable().safeParse(input.body);
+          return body.success ? { body: body.data, id } : undefined;
         }
-        const { body } = input;
-        return body === null || typeof body === "string" ? { body, id } : undefined;
-      }),
+      ),
     listDeployments: (environment) =>
       paginate(
         "list deployments",
@@ -326,12 +405,17 @@ export const createGitHubApi = (
         (input) => {
           const id = parseId(input);
           return id ? { id } : undefined;
-        },
+        }
       ),
     updateComment: async (commentId, body) => {
-      const response = await write("update comment", `/issues/comments/${commentId}`, "PATCH", {
-        body,
-      });
+      const response = await write(
+        "update comment",
+        `/issues/comments/${commentId}`,
+        "PATCH",
+        {
+          body,
+        }
+      );
       return response._tag === "ok" ? ok(true) : response;
     },
   };

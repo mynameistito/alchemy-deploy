@@ -1,7 +1,7 @@
-import type { DeploymentStage, WorkerName } from "./deployment.ts";
-import { physicalWorkerName } from "./deployment.ts";
-import { err, ok } from "../shared/result.ts";
-import type { Result } from "../shared/result.ts";
+import type { DeploymentStage, WorkerName } from "@/domain/deployment.ts";
+import { physicalWorkerName } from "@/domain/deployment.ts";
+import { err, ok } from "@/shared/result.ts";
+import type { Result } from "@/shared/result.ts";
 
 const URL_CANDIDATE = /https:\/\/[^\s"'<>]+/gu;
 const TRAILING_PUNCTUATION = /[),.;]+$/gu;
@@ -20,15 +20,20 @@ export class DeploymentUrlError extends Error {
   override readonly name = "DeploymentUrlError";
 }
 
-const escapeRegex = (value: string): string => value.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+const escapeRegex = (value: string): string =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
 const patternFor = (
   pattern: string,
   worker: WorkerName,
-  stage: DeploymentStage,
+  stage: DeploymentStage
 ): Result<RegExp, DeploymentUrlError> => {
   if (!pattern.includes("{worker}") || !pattern.includes("{stage}")) {
-    return err(new DeploymentUrlError("preview-url-pattern must contain {worker} and {stage}"));
+    return err(
+      new DeploymentUrlError(
+        "preview-url-pattern must contain {worker} and {stage}"
+      )
+    );
   }
   const escaped = escapeRegex(pattern)
     .replaceAll("\\{worker\\}", escapeRegex(worker))
@@ -37,7 +42,10 @@ const patternFor = (
   return ok(new RegExp(`^${escaped}$`, "u"));
 };
 
-const parseHttpsOrigin = (input: string, field: string): Result<string, DeploymentUrlError> => {
+const parseHttpsOrigin = (
+  input: string,
+  field: string
+): Result<string, DeploymentUrlError> => {
   try {
     const url = new URL(input);
     if (url.protocol !== "https:") {
@@ -47,8 +55,8 @@ const parseHttpsOrigin = (input: string, field: string): Result<string, Deployme
   } catch (error) {
     return err(
       new DeploymentUrlError(
-        `${field} is not a URL: ${error instanceof Error ? error.message : "unknown parse error"}`,
-      ),
+        `${field} is not a URL: ${error instanceof Error ? error.message : "unknown parse error"}`
+      )
     );
   }
 };
@@ -58,7 +66,7 @@ export const resolveDeploymentUrl = (
   log: string,
   stage: DeploymentStage,
   worker: WorkerName,
-  config: DeploymentUrlConfig,
+  config: DeploymentUrlConfig
 ): Result<string, DeploymentUrlError> => {
   if (stage._tag === "production") {
     return parseHttpsOrigin(config.productionUrl, "production-url");
@@ -77,8 +85,8 @@ export const resolveDeploymentUrl = (
   }
   return err(
     new DeploymentUrlError(
-      `Alchemy output did not contain a URL matching ${config.previewUrlPattern} for ${physicalWorkerName(worker, stage)}`,
-    ),
+      `Alchemy output did not contain a URL matching ${config.previewUrlPattern} for ${physicalWorkerName(worker, stage)}`
+    )
   );
 };
 
@@ -86,7 +94,7 @@ export const resolveDeploymentUrl = (
 export const cloudflareLogsUrl = (
   accountId: string,
   worker: WorkerName,
-  stage: DeploymentStage,
+  stage: DeploymentStage
 ): Result<string, DeploymentUrlError> => {
   if (!accountId.trim()) {
     return err(new DeploymentUrlError("cloudflare-account-id is required"));
@@ -94,6 +102,6 @@ export const cloudflareLogsUrl = (
   const service = encodeURIComponent(physicalWorkerName(worker, stage));
   const account = encodeURIComponent(accountId);
   return ok(
-    `https://dash.cloudflare.com/?to=/${account}/workers/services/view/${service}/production/logs`,
+    `https://dash.cloudflare.com/?to=/${account}/workers/services/view/${service}/production/logs`
   );
 };

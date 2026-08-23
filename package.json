@@ -19,14 +19,22 @@
     "typecheck": "tsc --noEmit",
     "validate": "bun run typecheck && bun test && bun run check && bun run validate:metadata && bun run validate:changesets",
     "validate:changesets": "bun scripts/validate-changesets.ts",
-    "validate:metadata": "bun scripts/validate-metadata.ts"
+    "validate:metadata": "bun scripts/validate-metadata.ts",
+    "prepare": "lefthook install"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@changesets/cli": "2.29.7",
     "@types/bun": "1.4.0",
-    "oxfmt": "0.64.0",
-    "oxlint": "1.79.0",
-    "typescript": "6.0.2",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "eslint-plugin-github": "6.1.2",
+    "eslint-plugin-sonarjs": "^4.2.0",
+    "lefthook": "^2.1.10",
+    "oxfmt": "^0.64.0",
+    "oxlint": "^1.79.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "ultracite": "7.10.6",
     "yaml": "2.8.1"
   },

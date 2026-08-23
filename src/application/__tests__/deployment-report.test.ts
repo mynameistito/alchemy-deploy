@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { runDeploymentReport } from "../deployment-report.ts";
-import type { ReportContext } from "../deployment-report.ts";
-import { parseCommitSha, parseDeploymentStage, parseWorkerName } from "../../domain/deployment.ts";
-import type { GitHubDeploymentPort } from "../../github/github-api.ts";
-import { GitHubApiError } from "../../github/github-api.ts";
-import { err, ok } from "../../shared/result.ts";
+
+import { runDeploymentReport } from "@/application/deployment-report.ts";
+import type { ReportContext } from "@/application/deployment-report.ts";
+import {
+  parseCommitSha,
+  parseDeploymentStage,
+  parseWorkerName,
+} from "@/domain/deployment.ts";
+import type { GitHubDeploymentPort } from "@/github/github-api.ts";
+import { GitHubApiError } from "@/github/github-api.ts";
+import { err, ok } from "@/shared/result.ts";
 
 /* oxlint-disable require-await -- Fake ports fulfill asynchronous contracts without external I/O. */
 
@@ -48,7 +53,12 @@ describe("deployment cleanup", () => {
       context: contextFor("pr-8"),
     });
     expect(result).toEqual({ _tag: "ok", value: { deletedDeployments: 2 } });
-    expect(operations).toEqual(["inactive:1", "delete:1", "inactive:2", "delete:2"]);
+    expect(operations).toEqual([
+      "inactive:1",
+      "delete:1",
+      "inactive:2",
+      "delete:2",
+    ]);
   });
 
   test("refuses production cleanup before listing deployments", async () => {
@@ -80,7 +90,13 @@ describe("deployment creation", () => {
       createComment: async () => ok(true),
       createDeployment: async () => ok(42),
       createDeploymentStatus: async () =>
-        err(new GitHubApiError("create deployment status", 503, "temporarily unavailable")),
+        err(
+          new GitHubApiError(
+            "create deployment status",
+            503,
+            "temporarily unavailable"
+          )
+        ),
       deleteDeployment: async () => ok(true),
       listComments: async () => ok([]),
       listDeployments: async () => ok([]),

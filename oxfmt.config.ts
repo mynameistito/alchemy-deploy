@@ -1,5 +1,6 @@
 import { defineConfig } from "oxfmt";
+import ultracite from "ultracite/oxfmt";
 
 export default defineConfig({
-  ignorePatterns: ["bun.lock", "templates/**"],
+  ...ultracite,
 });
