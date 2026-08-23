@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: immutable-release
+  cancel-in-progress: false
+
+jobs:
+  changesets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Open release pull request
+        uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.5.3
+        with:
+          title: "chore: release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Detect merged Changesets version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(git show HEAD:package.json | bun -e 'console.log(JSON.parse(await Bun.stdin.text()).version)')"
+          if ! git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          previous="$(git show HEAD^:package.json | bun -e 'console.log(JSON.parse(await Bun.stdin.text()).version)')"
+          if [ "$current" = "$previous" ]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$current" = "0.0.0" ]; then
+            echo "::error::Refusing invalid release version $current."
+            exit 1
+          fi
+          if git ls-tree -r --name-only HEAD .changeset | grep -E '^\.changeset/.+\.md$' | grep -v '^\.changeset/README\.md$' >/dev/null; then
+            echo "::error::Version changed while unreleased Changesets remain."
+            exit 1
+          fi
+          {
+            echo "release=true"
+            echo "tag=v$current"
+          } >> "$GITHUB_OUTPUT"
+      - name: Create immutable tag and GitHub Release
+        if: steps.version.outputs.release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          existing="$(gh api "repos/$REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)"
+          if [ -n "$existing" ] && [ "$existing" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag $TAG already points to $existing instead of $GITHUB_SHA."
+            exit 1
+          fi
+          if [ -z "$existing" ]; then
+            gh api --method POST "repos/$REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists at the expected commit."
+            exit 0
+          fi
+          gh release create "$TAG" --repo "$REPOSITORY" --verify-tag --generate-notes --title "$TAG"

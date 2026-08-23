@@ -1,0 +1,62 @@
+name: Alchemy deployment report
+description: Create, complete, comment on, or clean up a GitHub deployment
+inputs:
+  mode:
+    description: One of create, complete, comment, or cleanup
+    required: true
+  stage:
+    description: Deployment environment (`prod` or `pr-<number>`)
+    required: true
+  production-stage:
+    description: Production deployment stage
+    default: prod
+    required: false
+  worker-name:
+    description: Base Cloudflare Worker name
+    required: true
+  deployment-sha:
+    description: Full lowercase commit SHA being deployed
+    required: true
+  deployment-id:
+    description: Existing GitHub deployment ID for complete mode
+    required: false
+  deployment-url:
+    description: Public deployed URL
+    required: false
+  logs-url:
+    description: Stage-specific Cloudflare logs URL
+    required: false
+  deploy-outcome:
+    description: Deployment step outcome (`success` or `failure`)
+    required: false
+  pull-request-number:
+    description: Pull request number for comment mode
+    required: false
+outputs:
+  deployment-id:
+    description: Deployment ID created in create mode
+    value: ${{ steps.report.outputs.deployment-id }}
+  deleted-deployments:
+    description: Deployment records deleted in cleanup mode
+    value: ${{ steps.report.outputs.deleted-deployments }}
+runs:
+  using: composite
+  steps:
+    - id: report
+      name: Report deployment
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        STAGE: ${{ inputs.stage }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        WORKER_NAME: ${{ inputs.worker-name }}
+        DEPLOYMENT_SHA: ${{ inputs.deployment-sha }}
+        DEPLOYMENT_ID: ${{ inputs.deployment-id }}
+        DEPLOYMENT_URL: ${{ inputs.deployment-url }}
+        LOGS_URL: ${{ inputs.logs-url }}
+        DEPLOY_OUTCOME: ${{ inputs.deploy-outcome }}
+        PULL_REQUEST_NUMBER: ${{ inputs.pull-request-number }}
+      run: bun "$GITHUB_ACTION_PATH/../../src/actions/deployment-report-main.ts"
+branding:
+  icon: upload-cloud
+  color: green
