@@ -67,7 +67,7 @@ concurrency:
 jobs:
   resolve:
     if: >-
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == inputs.production-branch) || (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository)
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'pull_request' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == inputs.production-branch))
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -86,10 +86,11 @@ jobs:
         shell: bash
         env:
           CI_WORKFLOW: ${{ inputs.ci-workflow }}
-          DEPLOYMENT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
+          DEPLOYMENT_SHA: ${{ github.event.workflow_run.head_sha }}
           EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_EVENT: ${{ github.event.workflow_run.event }}
           GH_TOKEN: ${{ github.token }}
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          PULL_REQUEST_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           PRODUCTION_BRANCH: ${{ inputs.production-branch }}
           PRODUCTION_STAGE: ${{ inputs.production-stage }}
           REPOSITORY: ${{ github.repository }}
@@ -99,7 +100,7 @@ jobs:
             echo "::error::Refusing an invalid deployment SHA."
             exit 1
           fi
-          if [ "$EVENT_NAME" = "workflow_run" ]; then
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ "$WORKFLOW_EVENT" = "push" ]; then
             branch_sha="$(gh api "repos/$REPOSITORY/branches/$PRODUCTION_BRANCH" --jq '.commit.sha')"
             if [ "$branch_sha" != "$DEPLOYMENT_SHA" ]; then
               echo "::warning::Production branch moved to $branch_sha; stale deployment $DEPLOYMENT_SHA refused."
