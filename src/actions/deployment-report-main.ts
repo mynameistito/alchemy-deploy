@@ -26,6 +26,9 @@ const main = async (): Promise<number> => {
   });
   const result = await runDeploymentReport(github, parsed.value.command);
   if (result._tag === "err") {
+    if (result.error.deploymentId) {
+      await setOutput("deployment-id", String(result.error.deploymentId));
+    }
     console.error(`::error::Deployment reporting failed: ${result.error.message}`);
     return 1;
   }

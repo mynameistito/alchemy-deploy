@@ -59,11 +59,13 @@ export class DeploymentReportError extends Error {
   readonly _tag = "DeploymentReportError" as const;
   override readonly cause: GitHubApiError | undefined;
   override readonly name = "DeploymentReportError";
+  readonly deploymentId: number | undefined;
 
   /** Create a report error with its underlying expected failure. */
-  constructor(message: string, cause?: GitHubApiError) {
+  constructor(message: string, cause?: GitHubApiError, deploymentId?: number) {
     super(message);
     this.cause = cause;
+    this.deploymentId = deploymentId;
   }
 }
 
@@ -88,7 +90,9 @@ const create = async (
     logUrl: context.runUrl,
     state: "in_progress",
   });
-  return status._tag === "err" ? apiFailure(status.error) : ok({ deploymentId: deployment.value });
+  return status._tag === "err"
+    ? err(new DeploymentReportError(status.error.message, status.error, deployment.value))
+    : ok({ deploymentId: deployment.value });
 };
 
 const complete = async (

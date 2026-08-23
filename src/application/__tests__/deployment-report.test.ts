@@ -3,7 +3,8 @@ import { runDeploymentReport } from "../deployment-report.ts";
 import type { ReportContext } from "../deployment-report.ts";
 import { parseCommitSha, parseDeploymentStage, parseWorkerName } from "../../domain/deployment.ts";
 import type { GitHubDeploymentPort } from "../../github/github-api.ts";
-import { ok } from "../../shared/result.ts";
+import { GitHubApiError } from "../../github/github-api.ts";
+import { err, ok } from "../../shared/result.ts";
 
 /* oxlint-disable require-await -- Fake ports fulfill asynchronous contracts without external I/O. */
 
@@ -70,5 +71,28 @@ describe("deployment cleanup", () => {
     });
     expect(result._tag).toBe("err");
     expect(listed).toBeFalse();
+  });
+});
+
+describe("deployment creation", () => {
+  test("preserves the deployment ID when the initial status fails", async () => {
+    const github: GitHubDeploymentPort = {
+      createComment: async () => ok(true),
+      createDeployment: async () => ok(42),
+      createDeploymentStatus: async () =>
+        err(new GitHubApiError("create deployment status", 503, "temporarily unavailable")),
+      deleteDeployment: async () => ok(true),
+      listComments: async () => ok([]),
+      listDeployments: async () => ok([]),
+      updateComment: async () => ok(true),
+    };
+    const result = await runDeploymentReport(github, {
+      _tag: "create",
+      context: contextFor("prod"),
+    });
+    expect(result._tag).toBe("err");
+    if (result._tag === "err") {
+      expect(result.error.deploymentId).toBe(42);
+    }
   });
 });

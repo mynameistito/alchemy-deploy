@@ -2,7 +2,7 @@ import type { CommitSha, DeploymentStage, WorkerName } from "../domain/deploymen
 import { physicalWorkerName } from "../domain/deployment.ts";
 
 const LOGO_URL =
-  "https://raw.githubusercontent.com/mynameistito/alchemy-deploy/v1.0.0/assets/alchemy.svg";
+  "https://raw.githubusercontent.com/mynameistito/alchemy-deploy/c8640f1df20812b904f5d3f9ee50c3fb1cb7e7c8/assets/alchemy.svg";
 
 /** Values rendered into a deployment comment. */
 export interface DeploymentCommentInput {

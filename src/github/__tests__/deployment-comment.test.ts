@@ -34,7 +34,9 @@ describe("deployment comments", () => {
     expect(body).toContain(deploymentCommentMarker(stage));
     expect(body).toContain("x-lookup-pr-42");
     expect(body).toContain("2026-08-23T00:00:00.000Z");
-    expect(body).toContain("alchemy-deploy/v1.0.0/assets/alchemy.svg");
+    expect(body).toContain(
+      "alchemy-deploy/c8640f1df20812b904f5d3f9ee50c3fb1cb7e7c8/assets/alchemy.svg",
+    );
   });
 
   test("matches only an exact marker line for the requested stage", () => {
