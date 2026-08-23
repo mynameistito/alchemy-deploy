@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { createGitHubApi } from "../github-api.ts";
+
+import { createGitHubApi } from "@/github/github-api.ts";
 
 const servers: Bun.Server<undefined>[] = [];
 
@@ -110,7 +111,11 @@ describe("GitHub API adapter", () => {
       owner: "owner",
       repository: "repo",
       token: "secret",
-    }).createDeployment({ environment: "prod", production: true, ref: "a".repeat(40) });
+    }).createDeployment({
+      environment: "prod",
+      production: true,
+      ref: "a".repeat(40),
+    });
     expect(result._tag).toBe("err");
     if (result._tag === "err") {
       expect(result.error.operation).toBe("create deployment");

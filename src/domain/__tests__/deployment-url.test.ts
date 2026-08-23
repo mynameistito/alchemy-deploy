@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { parseDeploymentStage, parseWorkerName } from "../deployment.ts";
-import { cloudflareLogsUrl, resolveDeploymentUrl } from "../deployment-url.ts";
+
+import {
+  cloudflareLogsUrl,
+  resolveDeploymentUrl,
+} from "@/domain/deployment-url.ts";
+import { parseDeploymentStage, parseWorkerName } from "@/domain/deployment.ts";
 
 const fixture = (stageName: string) => {
   const stage = parseDeploymentStage(stageName);
@@ -14,10 +18,15 @@ const fixture = (stageName: string) => {
 describe("deployment URL resolution", () => {
   test("uses configured production URL without trusting log noise", () => {
     const { stage, worker } = fixture("prod");
-    const result = resolveDeploymentUrl("https://attacker.example", stage, worker, {
-      previewUrlPattern: "https://{worker}-{stage}.*.workers.dev",
-      productionUrl: "https://x-lookup.example.com/path",
-    });
+    const result = resolveDeploymentUrl(
+      "https://attacker.example",
+      stage,
+      worker,
+      {
+        previewUrlPattern: "https://{worker}-{stage}.*.workers.dev",
+        productionUrl: "https://x-lookup.example.com/path",
+      }
+    );
     expect(result).toEqual({
       _tag: "ok",
       value: "https://x-lookup.example.com",
@@ -33,7 +42,7 @@ describe("deployment URL resolution", () => {
       {
         previewUrlPattern: "https://{worker}-{stage}.*.workers.dev",
         productionUrl: "https://x-lookup.example.com",
-      },
+      }
     );
     expect(result).toEqual({
       _tag: "ok",
@@ -47,7 +56,7 @@ describe("deployment URL resolution", () => {
       resolveDeploymentUrl("", stage, worker, {
         previewUrlPattern: "https://*.workers.dev",
         productionUrl: "https://example.com",
-      })._tag,
+      })._tag
     ).toBe("err");
     expect(cloudflareLogsUrl("account/id", worker, stage)).toEqual({
       _tag: "ok",

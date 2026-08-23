@@ -1,14 +1,21 @@
+import type {
+  DeploymentReportCommand,
+  ReportContext,
+} from "@/application/deployment-report.ts";
 import {
   DeploymentInputError,
   parseCommitSha,
   parseDeploymentStage,
   parseReportMode,
   parseWorkerName,
-} from "../domain/deployment.ts";
-import type { CommitSha, DeploymentStage, WorkerName } from "../domain/deployment.ts";
-import type { DeploymentReportCommand, ReportContext } from "../application/deployment-report.ts";
-import { err, ok } from "../shared/result.ts";
-import type { Result } from "../shared/result.ts";
+} from "@/domain/deployment.ts";
+import type {
+  CommitSha,
+  DeploymentStage,
+  WorkerName,
+} from "@/domain/deployment.ts";
+import { err, ok } from "@/shared/result.ts";
+import type { Result } from "@/shared/result.ts";
 
 /** External environment consumed by the deployment-report action. */
 export type ReportEnvironment = Readonly<Record<string, string | undefined>>;
@@ -25,15 +32,17 @@ export interface ParsedReportInput {
 
 const required = (
   environment: ReportEnvironment,
-  name: string,
+  name: string
 ): Result<string, DeploymentInputError> => {
   const value = environment[name]?.trim();
-  return value ? ok(value) : err(new DeploymentInputError(name.toLowerCase(), "is required"));
+  return value
+    ? ok(value)
+    : err(new DeploymentInputError(name.toLowerCase(), "is required"));
 };
 
 const positiveInteger = (
   input: string | undefined,
-  field: string,
+  field: string
 ): Result<number, DeploymentInputError> => {
   const value = Number(input);
   return Number.isSafeInteger(value) && value > 0
@@ -42,29 +51,31 @@ const positiveInteger = (
 };
 
 const outcome = (
-  input: string | undefined,
+  input: string | undefined
 ): Result<"success" | "failure", DeploymentInputError> => {
   if (input === "success" || input === "failure") {
     return ok(input);
   }
-  return err(new DeploymentInputError("deploy-outcome", "must be success or failure"));
+  return err(
+    new DeploymentInputError("deploy-outcome", "must be success or failure")
+  );
 };
 
 const secureUrl = (
   input: string | undefined,
-  field: string,
+  field: string
 ): Result<string, DeploymentInputError> => {
+  const invalid = () =>
+    err(new DeploymentInputError(field, "must be an HTTPS URL"));
   const value = input?.trim();
   if (!value || /[\r\n]/u.test(value)) {
-    return err(new DeploymentInputError(field, "must be an HTTPS URL"));
+    return invalid();
   }
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && url.hostname
-      ? ok(value)
-      : err(new DeploymentInputError(field, "must be an HTTPS URL"));
+    return url.protocol === "https:" && url.hostname ? ok(value) : invalid();
   } catch {
-    return err(new DeploymentInputError(field, "must be an HTTPS URL"));
+    return invalid();
   }
 };
 
@@ -72,7 +83,7 @@ const contextFrom = (
   environment: ReportEnvironment,
   stage: DeploymentStage,
   commitSha: CommitSha,
-  worker: WorkerName,
+  worker: WorkerName
 ): Result<ReportContext, DeploymentInputError> => {
   const owner = required(environment, "GITHUB_REPOSITORY_OWNER");
   const repositoryPath = required(environment, "GITHUB_REPOSITORY");
@@ -92,7 +103,9 @@ const contextFrom = (
   }
   const repository = repositoryPath.value.split("/").at(1);
   if (!repository) {
-    return err(new DeploymentInputError("github_repository", "must be owner/repository"));
+    return err(
+      new DeploymentInputError("github_repository", "must be owner/repository")
+    );
   }
   return ok({
     commitSha,
@@ -104,14 +117,79 @@ const contextFrom = (
   });
 };
 
+const parseDeploymentCommand = (
+  environment: ReportEnvironment,
+  mode: Exclude<DeploymentReportCommand["_tag"], "create" | "cleanup">,
+  context: ReportContext,
+  now: Date
+): Result<DeploymentReportCommand, DeploymentInputError> => {
+  const parsedOutcome = outcome(environment.DEPLOY_OUTCOME);
+  const logsUrl = secureUrl(environment.LOGS_URL, "logs-url");
+  if (parsedOutcome._tag === "err") {
+    return parsedOutcome;
+  }
+  if (logsUrl._tag === "err") {
+    return logsUrl;
+  }
+  const deploymentUrl = environment.DEPLOYMENT_URL?.trim()
+    ? secureUrl(environment.DEPLOYMENT_URL, "deployment-url")
+    : ok("");
+  if (deploymentUrl._tag === "err") {
+    return deploymentUrl;
+  }
+  if (mode === "complete") {
+    const deploymentId = positiveInteger(
+      environment.DEPLOYMENT_ID,
+      "deployment-id"
+    );
+    if (deploymentId._tag === "err") {
+      return deploymentId;
+    }
+    const baseCommand = {
+      _tag: "complete" as const,
+      context,
+      deploymentId: deploymentId.value,
+      logsUrl: logsUrl.value,
+      outcome: parsedOutcome.value,
+    };
+    return ok(
+      deploymentUrl.value
+        ? { ...baseCommand, deploymentUrl: deploymentUrl.value }
+        : baseCommand
+    );
+  }
+  const issueNumber = positiveInteger(
+    environment.PULL_REQUEST_NUMBER,
+    "pull-request-number"
+  );
+  if (issueNumber._tag === "err") {
+    return issueNumber;
+  }
+  const baseCommand = {
+    _tag: "comment" as const,
+    context,
+    issueNumber: issueNumber.value,
+    logsUrl: logsUrl.value,
+    outcome: parsedOutcome.value,
+    updatedAt: now,
+  };
+  return ok(
+    deploymentUrl.value
+      ? { ...baseCommand, deploymentUrl: deploymentUrl.value }
+      : baseCommand
+  );
+};
+
 /** Parse all action environment values into a legal report command. */
-// eslint-disable-next-line complexity -- This is the single boundary parser for mode-specific action inputs.
 export const parseReportEnvironment = (
   environment: ReportEnvironment,
-  now: Date,
+  now: Date
 ): Result<ParsedReportInput, DeploymentInputError> => {
   const mode = parseReportMode(environment.MODE);
-  const stage = parseDeploymentStage(environment.STAGE, environment.PRODUCTION_STAGE ?? "prod");
+  const stage = parseDeploymentStage(
+    environment.STAGE,
+    environment.PRODUCTION_STAGE ?? "prod"
+  );
   const commitSha = parseCommitSha(environment.DEPLOYMENT_SHA);
   const worker = parseWorkerName(environment.WORKER_NAME);
   const token = required(environment, "GITHUB_TOKEN");
@@ -130,63 +208,27 @@ export const parseReportEnvironment = (
   if (token._tag === "err") {
     return token;
   }
-  const context = contextFrom(environment, stage.value, commitSha.value, worker.value);
+  const context = contextFrom(
+    environment,
+    stage.value,
+    commitSha.value,
+    worker.value
+  );
   if (context._tag === "err") {
     return context;
   }
 
-  let command: DeploymentReportCommand;
-  if (mode.value === "create" || mode.value === "cleanup") {
-    command = { _tag: mode.value, context: context.value };
-  } else {
-    const parsedOutcome = outcome(environment.DEPLOY_OUTCOME);
-    const logsUrl = secureUrl(environment.LOGS_URL, "logs-url");
-    if (parsedOutcome._tag === "err") {
-      return parsedOutcome;
-    }
-    if (logsUrl._tag === "err") {
-      return logsUrl;
-    }
-    const deploymentUrlInput = environment.DEPLOYMENT_URL?.trim();
-    const deploymentUrl = deploymentUrlInput
-      ? secureUrl(deploymentUrlInput, "deployment-url")
-      : ok("");
-    if (deploymentUrl._tag === "err") {
-      return deploymentUrl;
-    }
-    if (mode.value === "complete") {
-      const deploymentId = positiveInteger(environment.DEPLOYMENT_ID, "deployment-id");
-      if (deploymentId._tag === "err") {
-        return deploymentId;
-      }
-      command = {
-        _tag: "complete",
-        context: context.value,
-        deploymentId: deploymentId.value,
-        ...(deploymentUrl.value ? { deploymentUrl: deploymentUrl.value } : {}),
-        logsUrl: logsUrl.value,
-        outcome: parsedOutcome.value,
-      };
-    } else {
-      const issueNumber = positiveInteger(environment.PULL_REQUEST_NUMBER, "pull-request-number");
-      if (issueNumber._tag === "err") {
-        return issueNumber;
-      }
-      command = {
-        _tag: "comment",
-        context: context.value,
-        ...(deploymentUrl.value ? { deploymentUrl: deploymentUrl.value } : {}),
-        issueNumber: issueNumber.value,
-        logsUrl: logsUrl.value,
-        outcome: parsedOutcome.value,
-        updatedAt: now,
-      };
-    }
+  const command =
+    mode.value === "create" || mode.value === "cleanup"
+      ? ok({ _tag: mode.value, context: context.value })
+      : parseDeploymentCommand(environment, mode.value, context.value, now);
+  if (command._tag === "err") {
+    return command;
   }
 
   return ok({
     apiUrl: environment.GITHUB_API_URL ?? "https://api.github.com",
-    command,
+    command: command.value,
     token: token.value,
   });
 };

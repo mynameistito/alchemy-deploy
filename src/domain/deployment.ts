@@ -1,5 +1,5 @@
-import { err, ok } from "../shared/result.ts";
-import type { Result } from "../shared/result.ts";
+import { err, ok } from "@/shared/result.ts";
+import type { Result } from "@/shared/result.ts";
 
 const PREVIEW_STAGE = /^pr-[1-9]\d*$/u;
 const PRODUCTION_STAGE = /^[a-z][a-z0-9_-]{0,62}$/u;
@@ -12,7 +12,11 @@ export type ReportMode = "create" | "complete" | "comment" | "cleanup";
 /** A parsed deployment stage. */
 export type DeploymentStage =
   | { readonly _tag: "production"; readonly value: string }
-  | { readonly _tag: "preview"; readonly pullRequest: number; readonly value: string };
+  | {
+      readonly _tag: "preview";
+      readonly pullRequest: number;
+      readonly value: string;
+    };
 
 /** A parsed Git commit SHA. */
 export type CommitSha = string & { readonly CommitSha: unique symbol };
@@ -35,25 +39,38 @@ export class DeploymentInputError extends Error {
 
 /** Parse a reporting mode from external input. */
 export const parseReportMode = (
-  input: string | undefined,
+  input: string | undefined
 ): Result<ReportMode, DeploymentInputError> => {
-  if (input === "create" || input === "complete" || input === "comment" || input === "cleanup") {
+  if (
+    input === "create" ||
+    input === "complete" ||
+    input === "comment" ||
+    input === "cleanup"
+  ) {
     return ok(input);
   }
-  return err(new DeploymentInputError("mode", "must be create, complete, comment, or cleanup"));
+  return err(
+    new DeploymentInputError(
+      "mode",
+      "must be create, complete, comment, or cleanup"
+    )
+  );
 };
 
 /** Parse a production or isolated pull-request stage. */
 export const parseDeploymentStage = (
   input: string | undefined,
-  productionStage = "prod",
+  productionStage = "prod"
 ): Result<DeploymentStage, DeploymentInputError> => {
-  if (!PRODUCTION_STAGE.test(productionStage) || PREVIEW_STAGE.test(productionStage)) {
+  if (
+    !PRODUCTION_STAGE.test(productionStage) ||
+    PREVIEW_STAGE.test(productionStage)
+  ) {
     return err(
       new DeploymentInputError(
         "production-stage",
-        "must be a safe stage name distinct from pr-<positive integer>",
-      ),
+        "must be a safe stage name distinct from pr-<positive integer>"
+      )
     );
   }
   if (input === productionStage) {
@@ -66,17 +83,19 @@ export const parseDeploymentStage = (
   return err(
     new DeploymentInputError(
       "stage",
-      `must be ${productionStage} or an isolated pr-<positive integer> stage`,
-    ),
+      `must be ${productionStage} or an isolated pr-<positive integer> stage`
+    )
   );
 };
 
 /** Parse a full lowercase Git commit SHA. */
 export const parseCommitSha = (
-  input: string | undefined,
+  input: string | undefined
 ): Result<CommitSha, DeploymentInputError> => {
   if (!input || !SHA.test(input)) {
-    return err(new DeploymentInputError("deployment-sha", "must be a full lowercase SHA"));
+    return err(
+      new DeploymentInputError("deployment-sha", "must be a full lowercase SHA")
+    );
   }
   // SAFETY: The regular expression above establishes the CommitSha invariant.
   return ok(input as CommitSha);
@@ -84,14 +103,14 @@ export const parseCommitSha = (
 
 /** Parse a Cloudflare-compatible Worker name. */
 export const parseWorkerName = (
-  input: string | undefined,
+  input: string | undefined
 ): Result<WorkerName, DeploymentInputError> => {
   if (!input || !WORKER_NAME.test(input)) {
     return err(
       new DeploymentInputError(
         "worker-name",
-        "must contain lowercase letters, numbers, or interior hyphens",
-      ),
+        "must contain lowercase letters, numbers, or interior hyphens"
+      )
     );
   }
   // SAFETY: The regular expression above establishes the WorkerName invariant.
@@ -99,10 +118,14 @@ export const parseWorkerName = (
 };
 
 /** Return the physical Worker name for a stage. */
-export const physicalWorkerName = (worker: WorkerName, stage: DeploymentStage): string =>
+export const physicalWorkerName = (
+  worker: WorkerName,
+  stage: DeploymentStage
+): string =>
   stage._tag === "production" ? worker : `${worker}-${stage.value}`;
 
 /** Return whether a stage is safe for automated teardown. */
 export const isPreviewStage = (
-  stage: DeploymentStage,
-): stage is Extract<DeploymentStage, { readonly _tag: "preview" }> => stage._tag === "preview";
+  stage: DeploymentStage
+): stage is Extract<DeploymentStage, { readonly _tag: "preview" }> =>
+  stage._tag === "preview";

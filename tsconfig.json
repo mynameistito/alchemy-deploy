@@ -10,6 +10,9 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "strict": true,
     "target": "ES2023",
     "types": ["bun"]

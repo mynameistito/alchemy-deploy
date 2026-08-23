@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parseReportEnvironment } from "../report-input.ts";
+
+import { parseReportEnvironment } from "@/actions/report-input.ts";
 
 const base = {
   DEPLOYMENT_SHA: "c".repeat(40),
@@ -23,7 +24,7 @@ describe("report action input", () => {
         LOGS_URL: "https://dash.cloudflare.com/logs",
         MODE: "complete",
       },
-      new Date(0),
+      new Date(0)
     );
     expect(result._tag).toBe("ok");
     if (result._tag === "ok") {
@@ -32,7 +33,9 @@ describe("report action input", () => {
   });
 
   test("returns expected errors for missing and malformed boundaries", () => {
-    expect(parseReportEnvironment({ ...base, MODE: "delete" }, new Date(0))._tag).toBe("err");
+    expect(
+      parseReportEnvironment({ ...base, MODE: "delete" }, new Date(0))._tag
+    ).toBe("err");
     expect(
       parseReportEnvironment(
         {
@@ -42,8 +45,8 @@ describe("report action input", () => {
           MODE: "comment",
           PULL_REQUEST_NUMBER: "0",
         },
-        new Date(0),
-      )._tag,
+        new Date(0)
+      )._tag
     ).toBe("err");
   });
 
@@ -57,7 +60,7 @@ describe("report action input", () => {
         LOGS_URL: "https://dash.cloudflare.com/logs",
         MODE: "complete",
       },
-      new Date(0),
+      new Date(0)
     );
     expect(result._tag).toBe("err");
   });

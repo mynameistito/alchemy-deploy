@@ -1,12 +1,20 @@
-import type { CommitSha, DeploymentStage, WorkerName } from "../domain/deployment.ts";
-import { isPreviewStage } from "../domain/deployment.ts";
+import type {
+  CommitSha,
+  DeploymentStage,
+  WorkerName,
+} from "@/domain/deployment.ts";
+import { isPreviewStage } from "@/domain/deployment.ts";
 import {
   hasDeploymentCommentMarker,
   renderDeploymentComment,
-} from "../github/deployment-comment.ts";
-import type { GitHubApiError, GitHubDeploymentPort } from "../github/github-api.ts";
-import { err, ok } from "../shared/result.ts";
-import type { Result } from "../shared/result.ts";
+} from "@/github/deployment-comment.ts";
+import type { DeploymentCommentInput } from "@/github/deployment-comment.ts";
+import type {
+  GitHubApiError,
+  GitHubDeploymentPort,
+} from "@/github/github-api.ts";
+import { err, ok } from "@/shared/result.ts";
+import type { Result } from "@/shared/result.ts";
 
 /** Shared context for all deployment-report modes. */
 export interface ReportContext {
@@ -69,12 +77,14 @@ export class DeploymentReportError extends Error {
   }
 }
 
-const apiFailure = (error: GitHubApiError): Result<never, DeploymentReportError> =>
+const apiFailure = (
+  error: GitHubApiError
+): Result<never, DeploymentReportError> =>
   err(new DeploymentReportError(error.message, error));
 
 const create = async (
   github: GitHubDeploymentPort,
-  context: ReportContext,
+  context: ReportContext
 ): Promise<Result<DeploymentReportOutput, DeploymentReportError>> => {
   const deployment = await github.createDeployment({
     environment: context.stage.value,
@@ -91,38 +101,50 @@ const create = async (
     state: "in_progress",
   });
   return status._tag === "err"
-    ? err(new DeploymentReportError(status.error.message, status.error, deployment.value))
+    ? err(
+        new DeploymentReportError(
+          status.error.message,
+          status.error,
+          deployment.value
+        )
+      )
     : ok({ deploymentId: deployment.value });
 };
 
 const complete = async (
   github: GitHubDeploymentPort,
-  command: Extract<DeploymentReportCommand, { readonly _tag: "complete" }>,
+  command: Extract<DeploymentReportCommand, { readonly _tag: "complete" }>
 ): Promise<Result<DeploymentReportOutput, DeploymentReportError>> => {
-  const status = await github.createDeploymentStatus({
+  const statusRequest = {
     deploymentId: command.deploymentId,
-    description: command.outcome === "success" ? "Deployment is live" : "Deployment failed",
-    ...(command.deploymentUrl ? { environmentUrl: command.deploymentUrl } : {}),
+    description:
+      command.outcome === "success"
+        ? "Deployment is live"
+        : "Deployment failed",
     logUrl: command.logsUrl,
     state: command.outcome,
-  });
+  };
+  const status = await github.createDeploymentStatus(
+    command.deploymentUrl
+      ? { ...statusRequest, environmentUrl: command.deploymentUrl }
+      : statusRequest
+  );
   return status._tag === "err" ? apiFailure(status.error) : ok({});
 };
 
 const comment = async (
   github: GitHubDeploymentPort,
-  command: Extract<DeploymentReportCommand, { readonly _tag: "comment" }>,
+  command: Extract<DeploymentReportCommand, { readonly _tag: "comment" }>
 ): Promise<Result<DeploymentReportOutput, DeploymentReportError>> => {
   const comments = await github.listComments(command.issueNumber);
   if (comments._tag === "err") {
     return apiFailure(comments.error);
   }
   const existing = comments.value.find((item) =>
-    hasDeploymentCommentMarker(item.body, command.context.stage),
+    hasDeploymentCommentMarker(item.body, command.context.stage)
   );
-  const body = renderDeploymentComment({
+  const commentInput: DeploymentCommentInput = {
     commitSha: command.context.commitSha,
-    ...(command.deploymentUrl ? { deploymentUrl: command.deploymentUrl } : {}),
     logsUrl: command.logsUrl,
     outcome: command.outcome,
     owner: command.context.owner,
@@ -131,7 +153,12 @@ const comment = async (
     stage: command.context.stage,
     updatedAt: command.updatedAt,
     worker: command.context.worker,
-  });
+  };
+  const body = renderDeploymentComment(
+    command.deploymentUrl
+      ? { ...commentInput, deploymentUrl: command.deploymentUrl }
+      : commentInput
+  );
   const result = existing
     ? await github.updateComment(existing.id, body)
     : await github.createComment(command.issueNumber, body);
@@ -140,11 +167,13 @@ const comment = async (
 
 const cleanup = async (
   github: GitHubDeploymentPort,
-  context: ReportContext,
+  context: ReportContext
 ): Promise<Result<DeploymentReportOutput, DeploymentReportError>> => {
   if (!isPreviewStage(context.stage)) {
     return err(
-      new DeploymentReportError(`Refusing to clean up non-preview stage: ${context.stage.value}`),
+      new DeploymentReportError(
+        `Refusing to clean up non-preview stage: ${context.stage.value}`
+      )
     );
   }
   const deployments = await github.listDeployments(context.stage.value);
@@ -173,7 +202,7 @@ const cleanup = async (
 /** Execute one deployment-report operation against its GitHub port. */
 export const runDeploymentReport = (
   github: GitHubDeploymentPort,
-  command: DeploymentReportCommand,
+  command: DeploymentReportCommand
 ): Promise<Result<DeploymentReportOutput, DeploymentReportError>> => {
   switch (command._tag) {
     case "create": {

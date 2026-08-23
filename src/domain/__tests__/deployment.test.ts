@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
+
 import {
   parseCommitSha,
   parseDeploymentStage,
   parseWorkerName,
   physicalWorkerName,
-} from "../deployment.ts";
+} from "@/domain/deployment.ts";
 
 describe("deployment input parsing", () => {
   test("parses only production and isolated preview stages", () => {
@@ -28,7 +29,9 @@ describe("deployment input parsing", () => {
     });
     expect(parseDeploymentStage("prod", "production")._tag).toBe("err");
     expect(parseDeploymentStage("pr-7", "pr-7")._tag).toBe("err");
-    expect(parseDeploymentStage("production", "production; echo unsafe")._tag).toBe("err");
+    expect(
+      parseDeploymentStage("production", "production; echo unsafe")._tag
+    ).toBe("err");
   });
 
   test("requires full lowercase SHAs and safe Worker names", () => {
@@ -45,6 +48,8 @@ describe("deployment input parsing", () => {
     if (worker._tag === "err" || preview._tag === "err") {
       throw new Error("test fixture failed to parse");
     }
-    expect(physicalWorkerName(worker.value, preview.value)).toBe("x-lookup-pr-7");
+    expect(physicalWorkerName(worker.value, preview.value)).toBe(
+      "x-lookup-pr-7"
+    );
   });
 });

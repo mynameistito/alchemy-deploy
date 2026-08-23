@@ -64,8 +64,8 @@ The root `action.yml` is the Marketplace action. The release workflow creates it
 
 Third-party Actions are pinned to verified commit SHAs resolved from their upstream Git tags:
 
-| Action              | Version  | SHA                                        | Source                      |
-| ------------------- | -------- | ------------------------------------------ | --------------------------- |
-| `actions/checkout`  | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | `actions/checkout` tag API  |
+| Action | Version | SHA | Source |
+| --- | --- | --- | --- |
+| `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | `actions/checkout` tag API |
 | `oven-sh/setup-bun` | `v2.0.2` | `735343b667d3e6f658f44d0eca948eb6282f2b76` | `oven-sh/setup-bun` tag API |
 | `changesets/action` | `v1.5.3` | `e0145edc7d9d8679003495b11f87bd8ef63c0cba` | `changesets/action` tag API |
