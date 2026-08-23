@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1
+
+### Patch Changes
+
+- 8a40eda: Fix preview URL extraction in the Marketplace action so successful Alchemy deploys complete reporting and preview comments.
+
 ## 2.0.0
 
 ### Major Changes
