@@ -202,6 +202,30 @@ describe("deployment policy action boundary", () => {
       _tag: "ok",
       value: { kind: "cleanup", stage: "pr-42" },
     });
+    const targetCleanup = await runDeploymentPolicy(
+      {
+        EVENT_ACTION: "closed",
+        EVENT_NAME: "pull_request_target",
+        PULL_REQUEST_HEAD_REPOSITORY_ID: "7",
+        PULL_REQUEST_NUMBER: "42",
+        REPOSITORY_ID: "7",
+      },
+      github(),
+      () => Promise.resolve()
+    );
+    expect(targetCleanup).toEqual(cleanup);
+    const forkCleanup = await runDeploymentPolicy(
+      {
+        EVENT_ACTION: "closed",
+        EVENT_NAME: "pull_request_target",
+        PULL_REQUEST_HEAD_REPOSITORY_ID: "8",
+        PULL_REQUEST_NUMBER: "42",
+        REPOSITORY_ID: "7",
+      },
+      github(),
+      () => Promise.resolve()
+    );
+    expect(forkCleanup).toEqual(cleanup);
     const invalidCleanup = await runDeploymentPolicy(
       {
         EVENT_ACTION: "closed",

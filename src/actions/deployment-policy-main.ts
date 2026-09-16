@@ -53,7 +53,10 @@ const resolve = async (
       new PolicyRuntimeError("REPOSITORY_ID must be a positive integer")
     );
   }
-  if (event === "pull_request" && environment.EVENT_ACTION === "closed") {
+  if (
+    (event === "pull_request" || event === "pull_request_target") &&
+    environment.EVENT_ACTION === "closed"
+  ) {
     const number = integer(environment.PULL_REQUEST_NUMBER);
     const headRepositoryId = integer(
       environment.PULL_REQUEST_HEAD_REPOSITORY_ID

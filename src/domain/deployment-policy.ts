@@ -48,10 +48,7 @@ export const deploymentPolicy = (input: PolicyInput): PolicyDecision => {
     if (stage._tag === "err") {
       return { kind: "noop", reason: stage.error };
     }
-    return input.headRepositoryId !== undefined &&
-      input.headRepositoryId === input.repositoryId
-      ? { kind: "cleanup", stage: stage.value }
-      : { kind: "noop", reason: "fork pull request" };
+    return { kind: "cleanup", stage: stage.value };
   }
 
   if (input.conclusion !== "success" || !input.sha) {
