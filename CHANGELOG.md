@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.2
+
+### Patch Changes
+
+- aed01de: Support cleaning up fork pull-request previews from the base repository context.
+
 ## 2.3.1
 
 ### Patch Changes
