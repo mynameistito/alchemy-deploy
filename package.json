@@ -24,7 +24,7 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.6.1"
   },
   "devDependencies": {
     "@changesets/cli": "3.0.1",
