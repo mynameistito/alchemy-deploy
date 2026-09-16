@@ -131,8 +131,8 @@ describe("deployment policy", () => {
         kind: "pull_request",
         number: 42,
         repositoryId: 7,
-      }).kind
-    ).toBe("noop");
+      })
+    ).toEqual({ kind: "cleanup", stage: "pr-42" });
   });
 
   test("makes duplicate and independent identities explicit", () => {
