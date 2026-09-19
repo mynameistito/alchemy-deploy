@@ -83,6 +83,22 @@ describe("deployment policy action boundary", () => {
       })
     );
     expect(stale._tag).toBe("err");
+    const approvedFork = await recheckDeploymentPolicy(
+      environment({ ALLOW_FORK_COMMITS: "true", STAGE: "pr-42" }),
+      github({
+        getPullRequest: () =>
+          Promise.resolve(
+            ok({
+              headRepositoryId: 8,
+              number: 42,
+              repositoryId: 7,
+              sha,
+              state: "open",
+            })
+          ),
+      })
+    );
+    expect(approvedFork).toEqual({ _tag: "ok", value: true });
   });
 
   test("rechecks the current production branch and configured branch", async () => {
@@ -170,6 +186,23 @@ describe("deployment policy action boundary", () => {
       })
     );
     expect(decisionKind(fork)).toBe("noop");
+    const approvedFork = await runDeploymentPolicy(
+      environment({ ALLOW_FORK_COMMITS: "true" }),
+      github({
+        getPullRequest: () =>
+          Promise.resolve(
+            ok({
+              headRepositoryId: 8,
+              number: 42,
+              repositoryId: 7,
+              sha,
+              state: "open",
+            })
+          ),
+      }),
+      () => Promise.resolve()
+    );
+    expect(decisionKind(approvedFork)).toBe("deploy");
     const duplicate = await outputs(
       {},
       github({

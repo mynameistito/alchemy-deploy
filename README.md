@@ -9,7 +9,7 @@ Deploy [Alchemy](https://alchemy.run/) Cloudflare Workers from GitHub Actions wi
 
 The root action is the recommended integration. It runs the consumer's Alchemy commands, so it works with the project's existing Bun configuration.
 
-The deploy job is a privileged trust boundary: same-repository preview code is checked out and executed with the Cloudflare credentials needed to deploy or destroy the configured Worker. Use a protected environment, required reviewers, or equivalent repository policy for those credentials. The action clears GitHub credentials before consumer commands and does not pass deployment credentials to its setup or dependency-install steps.
+The deploy job is a privileged trust boundary: same-repository preview code is checked out and executed with the Cloudflare credentials needed to deploy or destroy the configured Worker. Fork commits are refused by default; only set `allow-fork-commits` from a separately protected and approved deployment job. Use a protected environment, required reviewers, or equivalent repository policy for those credentials. The action clears GitHub credentials before consumer commands and does not pass deployment credentials to its setup or dependency-install steps.
 
 ## Usage
 
@@ -73,10 +73,12 @@ Add these repository secrets:
 | `production-url` | Yes |  | Canonical HTTPS URL for the production deployment. |
 | `production-stage` | No | `prod` | Alchemy stage reserved for production. |
 | `use-adopt` | No | `false` | Append `--adopt` to the deploy command. |
+| `allow-fork-commits` | No | `false` | Permit explicitly approved fork commits for preview deployments. Keep this disabled unless the caller protects the deployment job. |
 | `worker-config` | No |  | Optional value passed as `ALCHEMY_WORKER_CONFIG`. |
 | `preview-url-pattern` | No | `https://{worker}-{stage}.*.workers.dev` | URL glob used to find the preview URL in deploy output. It must contain `{worker}` and `{stage}`. `*` matches one URL path segment. |
 | `ci-workflow` | No | `ci.yml` | CI workflow file used for exact-SHA gating. |
 | `production-branch` | No | `main` | Branch allowed to deploy production. |
+| `pull-request-number` | No |  | Explicit pull request number when the caller resolves a `workflow_run` event independently. |
 | `install-command` | No | `bun install --frozen-lockfile` | Frozen Bun dependency installation command. |
 
 ## Permissions
@@ -101,11 +103,11 @@ Composite actions cannot grant or reduce workflow permissions. Pass `CLOUDFLARE_
 - The deployment checks out that exact commit with checkout credentials removed.
 - A successful preview is reported in one durable pull request comment, including the deployment and Cloudflare log links.
 - Closing a same-repository pull request destroys its `pr-<number>` stage before the related GitHub Deployment records are deleted.
-- Fork pull requests can run consumer CI but never receive deployment credentials or preview deployments.
+- Fork pull requests are denied preview deployments by default. A caller may explicitly enable fork commits only from a protected, separately approved deployment job.
 
 ## Security
 
-Same-repository pull request code runs during preview deployment with Cloudflare credentials. Treat repository write access as secret-bearing access, use a narrowly scoped Cloudflare token, and protect a deployment environment with required reviewers when repository trust warrants it.
+Same-repository pull request code runs during preview deployment with Cloudflare credentials. Treat repository write access as secret-bearing access, use a narrowly scoped Cloudflare token, and protect a deployment environment with required reviewers when repository trust warrants it. Enabling `allow-fork-commits` makes the caller's approval boundary responsible for authorizing fork code.
 
 The action passes configured commands through environment variables instead of interpolating them into generated shell source. Inputs are trusted repository configuration, not pull request data. API failures preserve the operation and HTTP status without exposing tokens.
 

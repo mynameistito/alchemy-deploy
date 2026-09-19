@@ -48,7 +48,7 @@ describe("deployment policy", () => {
     ).toBe("noop");
   });
 
-  test("refuses forks and stale PR heads", () => {
+  test("refuses forks by default and stale PR heads", () => {
     expect(
       deploymentPolicy({
         branch: "feature",
@@ -60,6 +60,18 @@ describe("deployment policy", () => {
         sha,
       }).kind
     ).toBe("noop");
+    expect(
+      deploymentPolicy({
+        allowForkCommits: true,
+        branch: "feature",
+        conclusion: "success",
+        event: "pull_request",
+        kind: "workflow_run",
+        productionBranch: "main",
+        pullRequest: pr({ headRepositoryId: 8 }),
+        sha,
+      })
+    ).toEqual({ kind: "deploy", sha, stage: "pr-42" });
     expect(
       deploymentPolicy({
         branch: "feature",

@@ -137,7 +137,11 @@ const resolve = async (
     if (pullRequest._tag === "err") {
       return err(new PolicyRuntimeError(pullRequest.error.message));
     }
-    const input: PolicyInput = { ...baseInput, pullRequest: pullRequest.value };
+    const input: PolicyInput = {
+      ...baseInput,
+      allowForkCommits: environment.ALLOW_FORK_COMMITS === "true",
+      pullRequest: pullRequest.value,
+    };
     const decision = deploymentPolicy(input);
     if (decision.kind !== "deploy") {
       return ok(decision);
@@ -258,7 +262,8 @@ export const recheckDeploymentPolicy = async (
   const current = pullRequest.value;
   return current.state === "open" &&
     current.repositoryId === repositoryId &&
-    current.headRepositoryId === repositoryId &&
+    (environment.ALLOW_FORK_COMMITS === "true" ||
+      current.headRepositoryId === repositoryId) &&
     current.sha === sha.value
     ? ok(true)
     : err(

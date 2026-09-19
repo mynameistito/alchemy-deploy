@@ -177,6 +177,7 @@ describe("composite action contract", () => {
     const orchestrationEnv = envFor(orchestration);
 
     const expectedInputs = {
+      "allow-fork-commits": { default: false, required: false },
       "ci-workflow": { default: "ci.yml", required: false },
       "deploy-command": { required: true },
       "destroy-command": { required: true },
@@ -191,6 +192,7 @@ describe("composite action contract", () => {
       "production-branch": { default: "main", required: false },
       "production-stage": { default: "prod", required: false },
       "production-url": { required: true },
+      "pull-request-number": { default: "", required: false },
       "use-adopt": { default: false, required: false },
       "worker-config": { default: "", required: false },
       "worker-name": { required: true },
@@ -205,6 +207,12 @@ describe("composite action contract", () => {
     expect(resolveEnv.CI_WORKFLOW).toContain("inputs.ci-workflow");
     expect(resolveEnv.PRODUCTION_BRANCH).toContain("inputs.production-branch");
     expect(resolveEnv.PRODUCTION_STAGE).toContain("inputs.production-stage");
+    expect(resolveEnv.ALLOW_FORK_COMMITS).toContain(
+      "inputs.allow-fork-commits"
+    );
+    expect(resolveEnv.PULL_REQUEST_NUMBER).toContain(
+      "inputs.pull-request-number"
+    );
     expect(resolveEnv.PULL_REQUEST_HEAD_REPOSITORY_ID).toContain(
       "head.repo.id"
     );
@@ -214,6 +222,9 @@ describe("composite action contract", () => {
       "inputs.preview-url-pattern"
     );
     expect(orchestrationEnv.PRODUCTION_URL).toContain("inputs.production-url");
+    expect(orchestrationEnv.ALLOW_FORK_COMMITS).toContain(
+      "inputs.allow-fork-commits"
+    );
     expect(orchestration.if).toBe(
       "success() && (steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true')"
     );
