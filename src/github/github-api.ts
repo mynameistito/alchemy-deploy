@@ -564,22 +564,6 @@ export const createGitHubApi = (
           return body.success ? { body: body.data, id } : undefined;
         }
       ),
-    listPreviewDeployments: () =>
-      paginate(
-        "list preview deployments",
-        `${root}/deployments?per_page=100`,
-        (input) => {
-          const environment = z.string().safeParse(input.environment);
-          if (!environment.success) {
-            return;
-          }
-          const sha = z.string().safeParse(input.sha);
-          return {
-            environment: environment.data,
-            sha: sha.success ? sha.data : "",
-          };
-        }
-      ),
     listDeployments: async (environment) => {
       const deployments = await paginate(
         "list deployments",
@@ -632,6 +616,22 @@ export const createGitHubApi = (
       }
       return ok(values);
     },
+    listPreviewDeployments: () =>
+      paginate(
+        "list preview deployments",
+        `${root}/deployments?per_page=100`,
+        (input) => {
+          const environment = z.string().safeParse(input.environment);
+          if (!environment.success) {
+            return;
+          }
+          const sha = z.string().safeParse(input.sha);
+          return {
+            environment: environment.data,
+            sha: sha.success ? sha.data : "",
+          };
+        }
+      ),
     updateComment: async (commentId, body) => {
       const response = await write(
         "update comment",
