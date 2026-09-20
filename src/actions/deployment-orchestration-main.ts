@@ -1,4 +1,6 @@
-import { appendFile, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+
+import { diagnostic, required, runConsumerCommand } from "@/actions/deployment-command.ts";
 
 import { recheckDeploymentPolicy } from "@/actions/deployment-policy-main.ts";
 import { parseReportEnvironment } from "@/actions/report-input.ts";
@@ -15,49 +17,6 @@ import {
 import { createGitHubApi } from "@/github/github-api.ts";
 import { err, ok } from "@/shared/result.ts";
 import type { Result } from "@/shared/result.ts";
-
-const required = (name: string): Result<string, Error> => {
-  const value = Bun.env[name]?.trim();
-  return value ? ok(value) : err(new Error(`${name} is required`));
-};
-
-const environmentFor = (command: ConsumerCommand) => {
-  const environment = {
-    ...command.environment,
-    ALCHEMY_WORKER_CONFIG: Bun.env.ALCHEMY_WORKER_CONFIG ?? "",
-    CLOUDFLARE_ACCOUNT_ID: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
-    CLOUDFLARE_API_TOKEN: Bun.env.CLOUDFLARE_API_TOKEN ?? "",
-    GITHUB_TOKEN: "",
-    STAGE: command.environment.STAGE ?? "",
-  } satisfies Record<string, string>;
-  return environment;
-};
-
-const runBash = async (
-  command: ConsumerCommand
-): Promise<Result<"success" | "failure", Error>> => {
-  const process = Bun.spawn(
-    [
-      "bash",
-      "-euo",
-      "pipefail",
-      "-c",
-      'bash -euo pipefail -c "$CONSUMER_COMMAND" 2>&1 | tee "$LOG_PATH"',
-    ],
-    {
-      env: {
-        ...Bun.env,
-        ...environmentFor(command),
-        CONSUMER_COMMAND: command.command,
-        LOG_PATH: command.logPath,
-      },
-      stderr: "inherit",
-      stdout: "inherit",
-    }
-  );
-  const exitCode = await process.exited;
-  return ok(exitCode === 0 ? "success" : "failure");
-};
 
 const resolveLinks = async (
   input: DeploymentLinkInput
@@ -88,17 +47,6 @@ const resolveLinks = async (
   return deployment._tag === "err"
     ? deployment
     : ok({ deploymentUrl: deployment.value, logsUrl: logs.value });
-};
-
-const diagnostic = async (message: string): Promise<void> => {
-  const path = Bun.env.GITHUB_STEP_SUMMARY;
-  if (path) {
-    await appendFile(
-      path,
-      `## Alchemy deployment diagnostics\n\n${message}\n`,
-      "utf-8"
-    );
-  }
 };
 
 const main = async (): Promise<number> => {
@@ -139,7 +87,7 @@ const main = async (): Promise<number> => {
       Bun.env.LOG_PATH ?? `${Bun.env.RUNNER_TEMP ?? "."}/alchemy-${mode}.log`,
   };
   const ports = {
-    consumer: runBash,
+    consumer: runConsumerCommand,
     diagnostic,
     links: resolveLinks,
     recheck: () => recheckDeploymentPolicy(Bun.env, github),

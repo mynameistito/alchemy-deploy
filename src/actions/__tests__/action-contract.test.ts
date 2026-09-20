@@ -160,6 +160,9 @@ describe("composite action contract", () => {
     expect(commands).toContain(
       'bun "$GITHUB_ACTION_PATH/src/actions/deployment-orchestration-main.ts"'
     );
+    expect(commands).toContain(
+      'bun "$GITHUB_ACTION_PATH/src/actions/deployment-reconcile-main.ts"'
+    );
     expect(commands.join("\n")).not.toContain("gh api");
     expect(commands.join("\n")).not.toContain("preview-url-pattern");
   });
@@ -298,7 +301,7 @@ describe("composite action contract", () => {
       "Run typed deployment orchestration"
     );
     const source = await readFile(
-      "src/actions/deployment-orchestration-main.ts",
+      "src/actions/deployment-command.ts",
       "utf-8"
     );
 
