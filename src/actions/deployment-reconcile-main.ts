@@ -1,14 +1,18 @@
-import { diagnostic, required, runConsumerCommand } from "@/actions/deployment-command.ts";
+import {
+  diagnostic,
+  required,
+  runConsumerCommand,
+} from "@/actions/deployment-command.ts";
 import type { ConsumerCommand } from "@/application/deployment-orchestration.ts";
 import { runDeploymentReport } from "@/application/deployment-report.ts";
 import type { ReportContext } from "@/application/deployment-report.ts";
 import { runPreviewReconcile } from "@/application/preview-reconcile.ts";
-import type { PreviewCandidate } from "@/domain/preview-reconcile.ts";
 import {
   parseCommitSha,
   parseDeploymentStage,
   parseWorkerName,
 } from "@/domain/deployment.ts";
+import type { PreviewCandidate } from "@/domain/preview-reconcile.ts";
 import { previewCandidates } from "@/domain/preview-reconcile.ts";
 import { createGitHubApi } from "@/github/github-api.ts";
 import { err, ok } from "@/shared/result.ts";

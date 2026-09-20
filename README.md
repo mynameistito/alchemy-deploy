@@ -101,7 +101,7 @@ Preview cleanup runs on the `pull_request: closed` event, so it is skipped whene
 ```yaml
 on:
   schedule:
-    - cron: '23 4 * * *'
+    - cron: "23 4 * * *"
 
 jobs:
   reconcile:

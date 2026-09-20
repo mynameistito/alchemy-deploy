@@ -19,7 +19,9 @@ export interface PreviewReconcilePorts {
     Result<readonly PreviewCandidate[], Error>
   >;
   /** Destroy one preview stage and clear its deployment records. */
-  readonly cleanup: (candidate: PreviewCandidate) => Promise<Result<true, Error>>;
+  readonly cleanup: (
+    candidate: PreviewCandidate
+  ) => Promise<Result<true, Error>>;
   /** Record a diagnostic that is not a hard failure. */
   readonly diagnostic: (message: string) => Promise<void>;
   /** Resolve whether a pull request is still open. */

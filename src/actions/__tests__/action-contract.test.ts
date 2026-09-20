@@ -300,10 +300,7 @@ describe("composite action contract", () => {
       steps,
       "Run typed deployment orchestration"
     );
-    const source = await readFile(
-      "src/actions/deployment-command.ts",
-      "utf-8"
-    );
+    const source = await readFile("src/actions/deployment-command.ts", "utf-8");
 
     expect(orchestration.shell).toBe("bash");
     expect(source).toContain("bash");

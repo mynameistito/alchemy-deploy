@@ -1,7 +1,10 @@
 import { readFile } from "node:fs/promises";
 
-import { diagnostic, required, runConsumerCommand } from "@/actions/deployment-command.ts";
-
+import {
+  diagnostic,
+  required,
+  runConsumerCommand,
+} from "@/actions/deployment-command.ts";
 import { recheckDeploymentPolicy } from "@/actions/deployment-policy-main.ts";
 import { parseReportEnvironment } from "@/actions/report-input.ts";
 import { runDeploymentOrchestration } from "@/application/deployment-orchestration.ts";
