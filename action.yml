@@ -41,6 +41,10 @@ inputs:
     description: Frozen Bun dependency installation command
     default: bun install --frozen-lockfile
     required: false
+  reconcile:
+    description: Destroy previews whose pull request is no longer open, ignoring the close event
+    default: false
+    required: false
 runs:
   using: composite
   steps:
@@ -93,14 +97,14 @@ runs:
         persist-credentials: false
 
     - name: Check out trusted default branch for cleanup
-      if: steps.resolve.outputs.cleanup == 'true'
+      if: steps.resolve.outputs.cleanup == 'true' || inputs.reconcile == 'true'
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         ref: ${{ github.event.repository.default_branch }}
         persist-credentials: false
 
     - name: Set up Bun
-      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true'
+      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true' || inputs.reconcile == 'true'
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
         bun-version-file: package.json
@@ -110,7 +114,7 @@ runs:
         GITHUB_TOKEN: ""
 
     - name: Install dependencies
-      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true'
+      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true' || inputs.reconcile == 'true'
       shell: bash
       env:
         CLOUDFLARE_ACCOUNT_ID: ""
@@ -120,7 +124,7 @@ runs:
       run: bash -euo pipefail -c "$INSTALL_COMMAND"
 
     - name: Require Cloudflare credentials
-      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true'
+      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true' || inputs.reconcile == 'true'
       shell: bash
       env:
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
@@ -164,6 +168,25 @@ runs:
         WORKER_NAME: ${{ inputs.worker-name }}
         WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
       run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-orchestration-main.ts"
+
+    - name: Run scheduled preview reconcile
+      if: success() && inputs.reconcile == 'true'
+      shell: bash
+      env:
+        ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        DESTROY_COMMAND: ${{ inputs.destroy-command }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PRODUCTION_STAGE: ${{ inputs.production-stage }}
+        RUNNER_TEMP: ${{ runner.temp }}
+        WORKER_NAME: ${{ inputs.worker-name }}
+      run: bun "$GITHUB_ACTION_PATH/src/actions/deployment-reconcile-main.ts"
 
 branding:
   icon: upload-cloud

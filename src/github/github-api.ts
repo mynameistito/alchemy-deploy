@@ -146,6 +146,22 @@ export interface GitHubPolicyPort extends GitHubDeploymentPort {
   ) => Promise<Result<string, GitHubApiError>>;
 }
 
+/** A deployment record used to discover preview stages. */
+export interface GitHubPreviewDeployment {
+  /** Deployment environment, a preview stage such as `pr-42`. */
+  readonly environment: string;
+  /** Commit SHA recorded on the deployment. */
+  readonly sha: string;
+}
+
+/** Read operations required by the scheduled preview reconcile. */
+export interface GitHubReconcilePort extends GitHubPolicyPort {
+  /** List every deployment record in the repository, newest first. */
+  readonly listPreviewDeployments: () => Promise<
+    Result<readonly GitHubPreviewDeployment[], GitHubApiError>
+  >;
+}
+
 /** Configuration for the GitHub REST adapter. */
 export interface GitHubApiConfig {
   /** API origin, normally GitHub's server URL plus `/api/v3` on GHES. */
@@ -232,7 +248,7 @@ const nextLink = (
 export const createGitHubApi = (
   config: GitHubApiConfig,
   fetcher: typeof fetch = fetch
-): GitHubPolicyPort => {
+): GitHubReconcilePort => {
   const apiOrigin = new URL(config.apiUrl).origin;
   const root = `${config.apiUrl.replace(/\/$/u, "")}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}`;
 
@@ -600,6 +616,22 @@ export const createGitHubApi = (
       }
       return ok(values);
     },
+    listPreviewDeployments: () =>
+      paginate(
+        "list preview deployments",
+        `${root}/deployments?per_page=100`,
+        (input) => {
+          const environment = z.string().safeParse(input.environment);
+          if (!environment.success) {
+            return;
+          }
+          const sha = z.string().safeParse(input.sha);
+          return {
+            environment: environment.data,
+            sha: sha.success ? sha.data : "",
+          };
+        }
+      ),
     updateComment: async (commentId, body) => {
       const response = await write(
         "update comment",

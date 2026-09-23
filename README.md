@@ -78,6 +78,7 @@ Add these repository secrets:
 | `ci-workflow` | No | `ci.yml` | CI workflow file used for exact-SHA gating. |
 | `production-branch` | No | `main` | Branch allowed to deploy production. |
 | `install-command` | No | `bun install --frozen-lockfile` | Frozen Bun dependency installation command. |
+| `reconcile` | No | `false` | Destroy previews whose pull request is no longer open. Run it from a scheduled job so a missed `pull_request: closed` event cannot leave a preview Worker serving. |
 
 ## Permissions
 
@@ -93,6 +94,41 @@ permissions:
 
 Composite actions cannot grant or reduce workflow permissions. Pass `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GITHUB_TOKEN` explicitly as step environment values. Do not use `secrets: inherit`.
 
+A scheduled reconcile needs `actions: read`, `contents: read`, `deployments: write`, and `pull-requests: read`.
+
+Preview cleanup runs on the `pull_request: closed` event, so it is skipped whenever that run does not execute or fails, for example when a Dependabot-sourced run receives no Cloudflare credentials. Add a nightly reconcile job so those previews are still destroyed:
+
+```yaml
+on:
+  schedule:
+    - cron: "23 4 * * *"
+
+jobs:
+  reconcile:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      pull-requests: read
+    steps:
+      - name: Reconcile preview deployments
+        uses: mynameistito/alchemy-deploy@<full-release-sha>
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          worker-name: <worker-name>
+          deploy-command: bunx --no-install alchemy deploy --stage "$STAGE" --yes
+          destroy-command: bunx --no-install alchemy destroy --stage "$STAGE" --yes
+          reconcile: true
+          production-url: https://<worker>.example.com
+```
+
+The reconcile finds preview stages from the repository's GitHub Deployment records, resolves each one's pull request, and destroys the stage with the configured `destroy-command` when the pull request is closed. Stages whose pull request is still open, or whose pull request lookup failed, are left untouched.
+
 ## How It Works
 
 - Production deploys run only from a successful `workflow_run` for `production-branch`.
@@ -101,6 +137,7 @@ Composite actions cannot grant or reduce workflow permissions. Pass `CLOUDFLARE_
 - The deployment checks out that exact commit with checkout credentials removed.
 - A successful preview is reported in one durable pull request comment, including the deployment and Cloudflare log links.
 - Closing a same-repository pull request destroys its `pr-<number>` stage before the related GitHub Deployment records are deleted.
+- A scheduled reconcile destroys any `pr-<number>` stage whose pull request is closed but whose cleanup never ran, then deletes the leftover GitHub Deployment records.
 - Fork pull requests can run consumer CI but never receive deployment credentials or preview deployments.
 
 ## Security
