@@ -102,6 +102,35 @@ describe("GitHub API adapter", () => {
     }
   });
 
+  test("ignores deployment records this action did not create", async () => {
+    const server = Bun.serve({
+      fetch(request): Response {
+        const url = new URL(request.url);
+        if (url.pathname.endsWith("/statuses")) {
+          return Response.json([{ state: "success" }]);
+        }
+        return Response.json([
+          { id: 1, payload: { worker: "worker" }, sha: "a".repeat(40) },
+          { id: 2, payload: {}, sha: "b".repeat(40) },
+        ]);
+      },
+      port: 0,
+    });
+    servers.push(server);
+    const result = await createGitHubApi({
+      apiUrl: server.url.toString(),
+      owner: "owner",
+      repository: "repo",
+      token: "secret",
+    }).listDeployments("prod");
+    expect(result).toEqual({
+      _tag: "ok",
+      value: [
+        { id: 1, sha: "a".repeat(40), state: "success", worker: "worker" },
+      ],
+    });
+  });
+
   test("classifies invalid JSON returned when creating a deployment", async () => {
     const server = Bun.serve({
       fetch: () => new Response("not-json", { status: 201 }),
