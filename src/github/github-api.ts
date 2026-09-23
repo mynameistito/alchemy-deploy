@@ -589,6 +589,11 @@ export const createGitHubApi = (
       }
       const values: GitHubDeployment[] = [];
       for (const deployment of deployments.value) {
+        // Job environments add payload-less deployment records of their own;
+        // only records carrying this action's worker identity are ours to read.
+        if (!("worker" in deployment)) {
+          continue;
+        }
         // oxlint-disable-next-line no-await-in-loop -- The latest status belongs to this deployment.
         const response = await request(
           "list deployment statuses",
