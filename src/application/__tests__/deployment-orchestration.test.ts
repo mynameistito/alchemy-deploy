@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { runDeploymentOrchestration } from "@/application/deployment-orchestration.ts";
 import type {
@@ -37,7 +39,7 @@ const context = (): ReportContext => {
 const consumer: ConsumerCommand = {
   command: "bun run deploy",
   environment: { STAGE: "pr-42" },
-  logPath: "/tmp/deploy.log",
+  logPath: path.join(tmpdir(), "deploy.log"),
 };
 
 const deployPlan = (): DeploymentOrchestrationPlan => ({

@@ -59,6 +59,16 @@ export class GitHubApiError extends Error {
   }
 }
 
+const GET_PULL_REQUEST = "get pull request";
+
+const pullRequestDetailsSchema = z.object({
+  headRepositoryId: z.number().int().positive(),
+  number: z.number().int().positive(),
+  repositoryId: z.number().int().positive(),
+  sha: z.string().length(40),
+  state: z.enum(["open", "closed"]),
+});
+
 /** Values needed to create a GitHub deployment. */
 export interface CreateDeploymentRequest {
   /** Deployment environment. */
@@ -476,7 +486,7 @@ export const createGitHubApi = (
     },
     getPullRequest: async (issueNumber) => {
       const response = await request(
-        "get pull request",
+        GET_PULL_REQUEST,
         `${root}/pulls/${issueNumber}`
       );
       if (response._tag === "err") {
@@ -486,7 +496,7 @@ export const createGitHubApi = (
       if (!json.success) {
         return err(
           new GitHubApiError(
-            "get pull request",
+            GET_PULL_REQUEST,
             response.value.status,
             "response was not an object"
           )
@@ -500,36 +510,29 @@ export const createGitHubApi = (
       const baseRepository = base.success
         ? githubObjectSchema.safeParse(base.data.repo)
         : undefined;
-      const number = z.number().int().positive().safeParse(json.data.number);
-      const state = z.enum(["open", "closed"]).safeParse(json.data.state);
-      const sha = head.success
-        ? z.string().length(40).safeParse(head.data.sha)
-        : undefined;
       const headRepositoryId = headRepository?.success
         ? parseId(headRepository.data)
         : undefined;
       const repositoryId = baseRepository?.success
         ? parseId(baseRepository.data)
         : undefined;
-      return number.success &&
-        state.success &&
-        sha?.success &&
-        headRepositoryId &&
-        repositoryId
-        ? ok({
-            headRepositoryId,
-            number: number.data,
-            repositoryId,
-            sha: sha.data,
-            state: state.data,
-          })
-        : err(
-            new GitHubApiError(
-              "get pull request",
-              response.value.status,
-              "response did not match the expected shape"
-            )
-          );
+      const details = pullRequestDetailsSchema.safeParse({
+        headRepositoryId,
+        number: json.data.number,
+        repositoryId,
+        sha: head.success ? head.data.sha : undefined,
+        state: json.data.state,
+      });
+      if (!details.success) {
+        return err(
+          new GitHubApiError(
+            GET_PULL_REQUEST,
+            response.value.status,
+            "response did not match the expected shape"
+          )
+        );
+      }
+      return ok(details.data);
     },
     getWorkflowId: async (workflow) => {
       const response = await request(

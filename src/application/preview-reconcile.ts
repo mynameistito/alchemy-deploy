@@ -30,6 +30,36 @@ export interface PreviewReconcilePorts {
   ) => Promise<Result<boolean, Error>>;
 }
 
+type CandidateOutcome = "failed" | "reconciled" | "skipped";
+
+const reconcileCandidate = async (
+  candidate: PreviewCandidate,
+  ports: PreviewReconcilePorts
+): Promise<CandidateOutcome> => {
+  // oxlint-disable-next-line no-await-in-loop -- Each preview stage is resolved on its own.
+  const open = await ports.isPullRequestOpen(candidate.pullRequest);
+  if (open._tag === "err") {
+    // oxlint-disable-next-line no-await-in-loop -- The diagnostic belongs to this stage.
+    await ports.diagnostic(
+      `Preview reconcile skipped ${candidate.stage}: ${open.error.message}`
+    );
+    return "skipped";
+  }
+  if (open.value) {
+    return "skipped";
+  }
+  // oxlint-disable-next-line no-await-in-loop -- Cleanup preserves evidence one stage at a time.
+  const cleanup = await ports.cleanup(candidate);
+  if (cleanup._tag === "err") {
+    // oxlint-disable-next-line no-await-in-loop -- The diagnostic belongs to this stage.
+    await ports.diagnostic(
+      `Preview reconcile failed ${candidate.stage}: ${cleanup.error.message}`
+    );
+    return "failed";
+  }
+  return "reconciled";
+};
+
 /**
  * Destroy preview stages whose pull request is no longer open.
  *
@@ -49,31 +79,15 @@ export const runPreviewReconcile = async (
   let skipped = 0;
   let failed = 0;
   for (const candidate of candidates.value) {
-    // oxlint-disable-next-line no-await-in-loop -- Each preview stage is resolved on its own.
-    const open = await ports.isPullRequestOpen(candidate.pullRequest);
-    if (open._tag === "err") {
-      skipped += 1;
-      // oxlint-disable-next-line no-await-in-loop -- The diagnostic belongs to this stage.
-      await ports.diagnostic(
-        `Preview reconcile skipped ${candidate.stage}: ${open.error.message}`
-      );
-      continue;
-    }
-    if (open.value) {
-      skipped += 1;
-      continue;
-    }
-    // oxlint-disable-next-line no-await-in-loop -- Cleanup preserves evidence one stage at a time.
-    const cleanup = await ports.cleanup(candidate);
-    if (cleanup._tag === "err") {
+    // oxlint-disable-next-line no-await-in-loop -- Preserve serial cleanup and diagnostics per preview.
+    const outcome = await reconcileCandidate(candidate, ports);
+    if (outcome === "failed") {
       failed += 1;
-      // oxlint-disable-next-line no-await-in-loop -- The diagnostic belongs to this stage.
-      await ports.diagnostic(
-        `Preview reconcile failed ${candidate.stage}: ${cleanup.error.message}`
-      );
-      continue;
+    } else if (outcome === "skipped") {
+      skipped += 1;
+    } else {
+      reconciled += 1;
     }
-    reconciled += 1;
   }
   return ok({ failed, reconciled, skipped });
 };

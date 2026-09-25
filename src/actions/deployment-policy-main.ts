@@ -12,6 +12,7 @@ import { parseDeploymentStage } from "@/domain/deployment.ts";
 import { createGitHubApi } from "@/github/github-api.ts";
 import type {
   GitHubDeployment,
+  GitHubPullRequest,
   GitHubPolicyPort,
 } from "@/github/github-api.ts";
 import { err, ok } from "@/shared/result.ts";
@@ -41,42 +42,101 @@ const required = (
   return value ? ok(value) : err(new PolicyRuntimeError(`${name} is required`));
 };
 
-// oxlint-disable-next-line complexity -- This boundary keeps event-specific security gates on one policy path.
-const resolve = async (
+const hasTrustedPullRequest = (
+  current: GitHubPullRequest,
+  repositoryId: number,
+  sha: string
+): boolean =>
+  current.state === "open" &&
+  current.repositoryId === repositoryId &&
+  current.headRepositoryId === repositoryId &&
+  current.sha === sha;
+
+const resolveClosedPullRequest = (
+  environment: PolicyEnvironment,
+  repositoryId: number
+): Result<PolicyDecision, PolicyRuntimeError> => {
+  const number = integer(environment.PULL_REQUEST_NUMBER);
+  const headRepositoryId = integer(environment.PULL_REQUEST_HEAD_REPOSITORY_ID);
+  let cleanupInput: PolicyInput = {
+    action: "closed",
+    kind: "pull_request",
+    repositoryId,
+  };
+  if (headRepositoryId !== undefined) {
+    cleanupInput = { ...cleanupInput, headRepositoryId };
+  }
+  if (number !== undefined) {
+    cleanupInput = { ...cleanupInput, number };
+  }
+  return ok(deploymentPolicy(cleanupInput));
+};
+
+const alreadyDeploying = async (
+  decision: PolicyDecision,
+  github: GitHubPolicyPort
+): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
+  if (decision.kind !== "deploy") {
+    return ok(decision);
+  }
+  const deployments = await github.listDeployments(decision.stage);
+  if (deployments._tag === "err") {
+    return err(new PolicyRuntimeError(deployments.error.message));
+  }
+  const activeDeployments = deployments.value.filter(
+    (
+      deployment
+    ): deployment is GitHubDeployment & {
+      readonly sha: string;
+      readonly state: string;
+    } => Boolean(deployment.sha && deployment.state)
+  );
+  return hasActiveDeployment(activeDeployments, decision.sha)
+    ? ok({
+        kind: "noop",
+        reason: "deployment is already successful or in progress",
+      })
+    : ok(decision);
+};
+
+const resolvePullRequestWorkflow = async (
+  baseInput: PolicyInput,
   environment: PolicyEnvironment,
   github: GitHubPolicyPort
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
-  const event = environment.EVENT_NAME;
-  const repositoryId = integer(environment.REPOSITORY_ID);
-  if (!repositoryId) {
-    return err(
-      new PolicyRuntimeError("REPOSITORY_ID must be a positive integer")
-    );
+  const number = integer(environment.PULL_REQUEST_NUMBER);
+  if (!number) {
+    return ok({ kind: "noop", reason: "invalid pull request number" });
   }
-  if (
-    (event === "pull_request" || event === "pull_request_target") &&
-    environment.EVENT_ACTION === "closed"
-  ) {
-    const number = integer(environment.PULL_REQUEST_NUMBER);
-    const headRepositoryId = integer(
-      environment.PULL_REQUEST_HEAD_REPOSITORY_ID
-    );
-    let cleanupInput: PolicyInput = {
-      action: "closed",
-      kind: "pull_request",
-      repositoryId,
-    };
-    if (headRepositoryId !== undefined) {
-      cleanupInput = { ...cleanupInput, headRepositoryId };
-    }
-    if (number !== undefined) {
-      cleanupInput = { ...cleanupInput, number };
-    }
-    return ok(deploymentPolicy(cleanupInput));
+  const pullRequest = await github.getPullRequest(number);
+  if (pullRequest._tag === "err") {
+    return err(new PolicyRuntimeError(pullRequest.error.message));
   }
-  if (event !== "workflow_run") {
-    return ok({ kind: "noop", reason: "unsupported action event" });
+  return alreadyDeploying(
+    deploymentPolicy({ ...baseInput, pullRequest: pullRequest.value }),
+    github
+  );
+};
+
+const resolvePushWorkflow = async (
+  baseInput: PolicyInput,
+  branch: string,
+  github: GitHubPolicyPort
+): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
+  const current = await github.getBranchSha(branch);
+  if (current._tag === "err") {
+    return err(new PolicyRuntimeError(current.error.message));
   }
+  return alreadyDeploying(
+    deploymentPolicy({ ...baseInput, currentMainSha: current.value }),
+    github
+  );
+};
+
+const resolveWorkflowRun = async (
+  environment: PolicyEnvironment,
+  github: GitHubPolicyPort
+): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   if (environment.WORKFLOW_RUN_CONCLUSION !== "success") {
     return ok({ kind: "noop", reason: "CI did not succeed" });
   }
@@ -129,73 +189,37 @@ const resolve = async (
     baseInput = { ...baseInput, event: environment.WORKFLOW_RUN_EVENT };
   }
   if (baseInput.event === "pull_request") {
-    const number = integer(environment.PULL_REQUEST_NUMBER);
-    if (!number) {
-      return ok({ kind: "noop", reason: "invalid pull request number" });
-    }
-    const pullRequest = await github.getPullRequest(number);
-    if (pullRequest._tag === "err") {
-      return err(new PolicyRuntimeError(pullRequest.error.message));
-    }
-    const input: PolicyInput = { ...baseInput, pullRequest: pullRequest.value };
-    const decision = deploymentPolicy(input);
-    if (decision.kind !== "deploy") {
-      return ok(decision);
-    }
-    const deployments = await github.listDeployments(decision.stage);
-    if (deployments._tag === "err") {
-      return err(new PolicyRuntimeError(deployments.error.message));
-    }
-    return hasActiveDeployment(
-      deployments.value.filter(
-        (
-          deployment
-        ): deployment is GitHubDeployment & {
-          readonly sha: string;
-          readonly state: string;
-        } => Boolean(deployment.sha && deployment.state)
-      ),
-      decision.sha
-    )
-      ? ok({
-          kind: "noop",
-          reason: "deployment is already successful or in progress",
-        })
-      : ok(decision);
-  } else if (baseInput.event === "push") {
-    const current = await github.getBranchSha(configuredBranch.value);
-    if (current._tag === "err") {
-      return err(new PolicyRuntimeError(current.error.message));
-    }
-    const decision = deploymentPolicy({
-      ...baseInput,
-      currentMainSha: current.value,
-    });
-    if (decision.kind !== "deploy") {
-      return ok(decision);
-    }
-    const deployments = await github.listDeployments(decision.stage);
-    if (deployments._tag === "err") {
-      return err(new PolicyRuntimeError(deployments.error.message));
-    }
-    return hasActiveDeployment(
-      deployments.value.filter(
-        (
-          deployment
-        ): deployment is GitHubDeployment & {
-          readonly sha: string;
-          readonly state: string;
-        } => Boolean(deployment.sha && deployment.state)
-      ),
-      decision.sha
-    )
-      ? ok({
-          kind: "noop",
-          reason: "deployment is already successful or in progress",
-        })
-      : ok(decision);
+    return resolvePullRequestWorkflow(baseInput, environment, github);
+  }
+  if (baseInput.event === "push") {
+    return resolvePushWorkflow(baseInput, configuredBranch.value, github);
   }
   return ok(deploymentPolicy(baseInput));
+};
+
+const resolve = (
+  environment: PolicyEnvironment,
+  github: GitHubPolicyPort
+): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
+  const repositoryId = integer(environment.REPOSITORY_ID);
+  if (!repositoryId) {
+    return Promise.resolve(
+      err(new PolicyRuntimeError("REPOSITORY_ID must be a positive integer"))
+    );
+  }
+  const event = environment.EVENT_NAME;
+  if (
+    (event === "pull_request" || event === "pull_request_target") &&
+    environment.EVENT_ACTION === "closed"
+  ) {
+    return Promise.resolve(resolveClosedPullRequest(environment, repositoryId));
+  }
+  if (event !== "workflow_run") {
+    return Promise.resolve(
+      ok({ kind: "noop", reason: "unsupported action event" })
+    );
+  }
+  return resolveWorkflowRun(environment, github);
 };
 
 /** Recheck the trusted commit immediately before running consumer code. */
@@ -256,10 +280,7 @@ export const recheckDeploymentPolicy = async (
     return err(new PolicyRuntimeError(pullRequest.error.message));
   }
   const current = pullRequest.value;
-  return current.state === "open" &&
-    current.repositoryId === repositoryId &&
-    current.headRepositoryId === repositoryId &&
-    current.sha === sha.value
+  return hasTrustedPullRequest(current, repositoryId, sha.value)
     ? ok(true)
     : err(
         new PolicyRuntimeError(
@@ -277,24 +298,25 @@ export const runDeploymentPolicy = async (
   await output("deploy", "false");
   await output("cleanup", "false");
   const decision = await resolve(environment, github);
-  if (decision._tag === "err") {
-    return decision;
-  }
-  if (decision.value.kind === "deploy") {
-    await output("deploy", "true");
-    await output("deployment-sha", decision.value.sha);
-    await output(
-      "preview",
-      String(decision.value.stage !== (environment.PRODUCTION_STAGE ?? "prod"))
-    );
-    await output("stage", decision.value.stage);
-    if (environment.PULL_REQUEST_NUMBER) {
-      await output("pull-request-number", environment.PULL_REQUEST_NUMBER);
+  if (decision._tag === "ok") {
+    if (decision.value.kind === "deploy") {
+      await output("deploy", "true");
+      await output("deployment-sha", decision.value.sha);
+      await output(
+        "preview",
+        String(
+          decision.value.stage !== (environment.PRODUCTION_STAGE ?? "prod")
+        )
+      );
+      await output("stage", decision.value.stage);
+      if (environment.PULL_REQUEST_NUMBER) {
+        await output("pull-request-number", environment.PULL_REQUEST_NUMBER);
+      }
     }
-  }
-  if (decision.value.kind === "cleanup") {
-    await output("cleanup", "true");
-    await output("stage", decision.value.stage);
+    if (decision.value.kind === "cleanup") {
+      await output("cleanup", "true");
+      await output("stage", decision.value.stage);
+    }
   }
   return decision;
 };
