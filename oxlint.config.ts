@@ -6,7 +6,7 @@ import { selectJsPlugins } from "ultracite/oxlint/js-plugins";
 const jsPlugins = selectJsPlugins(["github", "sonarjs"]);
 
 export default defineConfig({
-  extends: [antiSlop, core, jsPlugins],
+  extends: [core, antiSlop, jsPlugins],
   ignorePatterns: core.ignorePatterns,
   jsPlugins: jsPlugins.jsPlugins,
   overrides: [
