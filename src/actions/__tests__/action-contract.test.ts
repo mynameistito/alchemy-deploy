@@ -70,7 +70,7 @@ describe("composite action contract", () => {
     expect(reportSetup.uses).toBe(
       "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
     );
-    expect(reportSetup.with).toEqual({ "bun-version": "1.4.0" });
+    expect(reportSetup.with).toEqual({ "bun-version": "1.4.2" });
     expect(reportInstall["working-directory"]).toBe(
       `${actionPathExpression}/../..`
     );
@@ -312,7 +312,7 @@ describe("composite action contract", () => {
   test("clears deployment credentials from trusted setup and install steps", async () => {
     const steps = stepsFor(await action());
     const policySetup = stepNamed(steps, "Set up Bun for policy resolution");
-    expect(policySetup.with).toEqual({ "bun-version": "1.4.0" });
+    expect(policySetup.with).toEqual({ "bun-version": "1.4.2" });
     for (const name of [
       "Install trusted action dependencies",
       "Set up Bun",
