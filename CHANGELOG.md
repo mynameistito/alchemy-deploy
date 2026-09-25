@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.1
+
+### Patch Changes
+
+- 654ea3a: Fix lint findings and update development dependencies.
+
 ## 2.4.0
 
 ### Minor Changes
