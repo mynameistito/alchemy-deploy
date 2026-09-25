@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.0
+
+### Minor Changes
+
+- fcdf99d: Add a scheduled preview reconcile that destroys preview stages whose pull request is no longer open, so a missed `pull_request: closed` event cannot leave a preview Worker serving after its pull request closed.
+
+### Patch Changes
+
+- ab5a3c6: Ignore deployment records this action did not create when resolving the deploy policy and preview cleanup.
+- 2dfde87: Retry one Alchemy deployment when the Cloudflare State Store returns HTTP 500 during planning.
+
 ## 2.3.2
 
 ### Patch Changes
