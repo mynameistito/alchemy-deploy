@@ -18,8 +18,8 @@ const packageJson = packageJsonSchema.parse(JSON.parse(packageText));
 const lockFile = Bun.file("bun.lock");
 const lockText = (await lockFile.exists()) ? await lockFile.text() : "";
 
-if (packageJson.packageManager !== "bun@1.4.0") {
-  failures.push("package.json: packageManager must pin bun@1.4.0");
+if (packageJson.packageManager !== "bun@1.4.2") {
+  failures.push("package.json: packageManager must pin bun@1.4.2");
 }
 if (!lockText) {
   failures.push("bun.lock: required by action dependency installation");

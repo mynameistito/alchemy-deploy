@@ -148,6 +148,25 @@ const successful = (
   command.value === "success" &&
   deploymentUrl !== undefined;
 
+const completeLinkFailure = async (
+  plan: Extract<DeploymentOrchestrationPlan, { _tag: "deploy" }>,
+  ports: DeploymentOrchestrationPorts,
+  deploymentId: number,
+  error: Error
+): Promise<Result<never, DeploymentOrchestrationError>> => {
+  await ports.diagnostic(`Deployment link resolution failed: ${error.message}`);
+  const complete = await ports.report({
+    _tag: "complete",
+    context: plan.context,
+    deploymentId,
+    logsUrl: plan.context.runUrl,
+    outcome: "failure",
+  });
+  return complete._tag === "err"
+    ? reportFailure("deploy", complete, deploymentId)
+    : failure("deploy", error, deploymentId);
+};
+
 const runDeploy = async (
   plan: Extract<DeploymentOrchestrationPlan, { _tag: "deploy" }>,
   ports: DeploymentOrchestrationPorts
@@ -188,20 +207,7 @@ const runDeploy = async (
   const outcome = command._tag === "ok" ? command.value : "failure";
   const links = await ports.links({ ...plan.links, outcome });
   if (links._tag === "err") {
-    await ports.diagnostic(
-      `Deployment link resolution failed: ${links.error.message}`
-    );
-    const complete = await ports.report({
-      _tag: "complete",
-      context: plan.context,
-      deploymentId,
-      logsUrl: plan.context.runUrl,
-      outcome: "failure",
-    });
-    if (complete._tag === "err") {
-      return reportFailure("deploy", complete, deploymentId);
-    }
-    return failure("deploy", links.error, deploymentId);
+    return completeLinkFailure(plan, ports, deploymentId, links.error);
   }
   const resolvedLinks = links.value;
   let completeCommand: Extract<DeploymentReportCommand, { _tag: "complete" }> =

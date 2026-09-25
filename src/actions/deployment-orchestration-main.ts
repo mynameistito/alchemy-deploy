@@ -78,11 +78,14 @@ const main = async (): Promise<number> => {
     repository: context.repository,
     token: parsed.value.token,
   });
+  const deployCommand = Bun.env.DEPLOY_COMMAND ?? "";
+  const adoptFlag = Bun.env.USE_ADOPT === "true" ? " --adopt" : "";
+  const commandText =
+    mode === "create"
+      ? `${deployCommand}${adoptFlag}`
+      : (Bun.env.DESTROY_COMMAND ?? "");
   const command: ConsumerCommand = {
-    command:
-      mode === "create"
-        ? `${Bun.env.DEPLOY_COMMAND ?? ""}${Bun.env.USE_ADOPT === "true" ? " --adopt" : ""}`
-        : (Bun.env.DESTROY_COMMAND ?? ""),
+    command: commandText,
     environment: {
       STAGE: context.stage.value,
     },
