@@ -1,5 +1,6 @@
-import { appendFile } from "node:fs/promises";
+import { appendFile, readFile, writeFile } from "node:fs/promises";
 
+import { runConsumerAttemptWithRetry } from "@/actions/consumer-command.ts";
 import type { ConsumerCommand } from "@/application/deployment-orchestration.ts";
 import { err, ok } from "@/shared/result.ts";
 import type { Result } from "@/shared/result.ts";
@@ -30,27 +31,31 @@ const environmentFor = (command: ConsumerCommand) => {
 export const runConsumerCommand = async (
   command: ConsumerCommand
 ): Promise<Result<"success" | "failure", Error>> => {
-  const process = Bun.spawn(
-    [
-      "bash",
-      "-euo",
-      "pipefail",
-      "-c",
-      'bash -euo pipefail -c "$CONSUMER_COMMAND" 2>&1 | tee "$LOG_PATH"',
-    ],
-    {
-      env: {
-        ...Bun.env,
-        ...environmentFor(command),
-        CONSUMER_COMMAND: command.command,
-        LOG_PATH: command.logPath,
-      },
-      stderr: "inherit",
-      stdout: "inherit",
-    }
-  );
-  const exitCode = await process.exited;
-  return ok(exitCode === 0 ? "success" : "failure");
+  await writeFile(command.logPath, "", "utf-8");
+  const outcome = await runConsumerAttemptWithRetry(async () => {
+    const process = Bun.spawn(
+      [
+        "bash",
+        "-euo",
+        "pipefail",
+        "-c",
+        'bash -euo pipefail -c "$CONSUMER_COMMAND" 2>&1 | tee -a "$LOG_PATH"',
+      ],
+      {
+        env: {
+          ...Bun.env,
+          ...environmentFor(command),
+          CONSUMER_COMMAND: command.command,
+          LOG_PATH: command.logPath,
+        },
+        stderr: "inherit",
+        stdout: "inherit",
+      }
+    );
+    const exitCode = await process.exited;
+    return { exitCode, output: await readFile(command.logPath, "utf-8") };
+  }, Bun.env.PHASE === "deploy");
+  return ok(outcome);
 };
 
 /** Preserve diagnostics when a failed phase cannot report them to GitHub. */
