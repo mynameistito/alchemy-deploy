@@ -214,7 +214,7 @@ describe("deployment creation", () => {
     const result = await runDeploymentReport(github, {
       _tag: "comment",
       context: contextFor("pr-8"),
-      deploymentUrl: "https://worker-pr-8.example.com",
+      deploymentUrl: "https://pr-8-worker.example.com",
       issueNumber: 8,
       logsUrl: "https://dash.cloudflare.com/logs",
       outcome: "success",

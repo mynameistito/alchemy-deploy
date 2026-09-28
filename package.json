@@ -24,6 +24,8 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
+    "alchemy": "2.0.0-beta.79",
+    "effect": "4.0.0-rc.118",
     "zod": "4.6.5"
   },
   "devDependencies": {

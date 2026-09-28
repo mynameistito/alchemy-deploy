@@ -26,7 +26,7 @@ describe("deployment comments", () => {
     const { commit, stage, worker } = parsedFixtures();
     const body = renderDeploymentComment({
       commitSha: commit,
-      deploymentUrl: "https://x-lookup-pr-42.foo.workers.dev",
+      deploymentUrl: "https://pr-42-x-lookup.foo.workers.dev",
       logsUrl: "https://dash.cloudflare.com/logs",
       outcome: "success",
       owner: "owner",
@@ -37,7 +37,7 @@ describe("deployment comments", () => {
       worker,
     });
     expect(body).toContain(deploymentCommentMarker(stage));
-    expect(body).toContain("x-lookup-pr-42");
+    expect(body).toContain("pr-42-x-lookup");
     expect(body).toContain("2026-08-23T00:00:00.000Z");
     expect(body).toContain(
       "alchemy-deploy/c8640f1df20812b904f5d3f9ee50c3fb1cb7e7c8/assets/alchemy.svg"

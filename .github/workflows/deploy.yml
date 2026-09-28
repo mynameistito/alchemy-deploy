@@ -10,9 +10,12 @@ on:
       production-stage: { default: prod, required: false, type: string }
       use-adopt: { default: false, required: false, type: boolean }
       worker-config: { default: "", required: false, type: string }
+      preview-artifact:
+        { default: alchemy-worker, required: false, type: string }
+      preview-entrypoint: { default: index.js, required: false, type: string }
       preview-url-pattern:
         {
-          default: "https://{worker}-{stage}.*.workers.dev",
+          default: "https://{stage}-{worker}.*.workers.dev",
           required: false,
           type: string,
         }
@@ -67,6 +70,8 @@ jobs:
           production-stage: ${{ inputs.production-stage }}
           use-adopt: ${{ inputs.use-adopt }}
           worker-config: ${{ inputs.worker-config }}
+          preview-artifact: ${{ inputs.preview-artifact }}
+          preview-entrypoint: ${{ inputs.preview-entrypoint }}
           preview-url-pattern: ${{ inputs.preview-url-pattern }}
           ci-workflow: ${{ inputs.ci-workflow }}
           production-branch: ${{ inputs.production-branch }}

@@ -184,6 +184,47 @@ describe("GitHub API adapter", () => {
     expect(requestBody?.payload).toEqual({ worker: "worker" });
   });
 
+  test("lists only preview records with a valid SHA and worker identity", async () => {
+    const server = Bun.serve({
+      fetch: () =>
+        Response.json([
+          {
+            environment: "pr-42",
+            payload: { worker: "api" },
+            sha: "a".repeat(40),
+          },
+          {
+            environment: "pr-42",
+            payload: { worker: "other" },
+            sha: "b".repeat(40),
+          },
+          { environment: "pr-42", payload: {}, sha: "c".repeat(40) },
+          {
+            environment: "pr-42",
+            payload: { worker: "api" },
+            sha: "not-a-sha",
+          },
+        ]),
+      port: 0,
+    });
+    servers.push(server);
+
+    const result = await createGitHubApi({
+      apiUrl: server.url.toString(),
+      owner: "owner",
+      repository: "repo",
+      token: "secret",
+    }).listPreviewDeployments();
+
+    expect(result).toEqual({
+      _tag: "ok",
+      value: [
+        { environment: "pr-42", sha: "a".repeat(40), worker: "api" },
+        { environment: "pr-42", sha: "b".repeat(40), worker: "other" },
+      ],
+    });
+  });
+
   test("refuses cross-origin pagination links", async () => {
     const server = Bun.serve({
       fetch: () =>

@@ -7,9 +7,9 @@ Deploy [Alchemy](https://alchemy.run/) Cloudflare Workers from GitHub Actions wi
 - One durable preview comment per pull request
 - Automatic preview cleanup when a pull request closes
 
-The root action is the recommended integration. It runs the consumer's Alchemy commands, so it works with the project's existing Bun configuration.
+The root action is the recommended integration. Production commands run from the exact trusted production commit. PR previews use a prebuilt CI artifact and this action's pinned Alchemy runtime to create a first-class Worker Preview.
 
-The deploy job is a privileged trust boundary: same-repository preview code is checked out and executed with the Cloudflare credentials needed to deploy or destroy the configured Worker. Use a protected environment, required reviewers, or equivalent repository policy for those credentials. The action clears GitHub credentials before consumer commands and does not pass deployment credentials to its setup or dependency-install steps.
+PR preview deployment does not check out or execute pull-request-controlled Alchemy configuration. Build the Worker in CI without Cloudflare or GitHub write credentials, then upload its complete, runtime-ready bundle as an Actions artifact. The trusted action downloads that artifact from the exact successful CI run and Alchemy uploads its bytes with `bundle: false`. The bundle itself is untrusted code and runs on Cloudflare once deployed; it never runs in the credentialed deployment process. Fork PRs remain ineligible for privileged deployment.
 
 ## Usage
 
@@ -38,7 +38,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Run Alchemy deployment
-        uses: mynameistito/alchemy-deploy@d42b56ce1471dde5c5654c722b79701a1c60e9eb # v2.2.0
+        uses: mynameistito/alchemy-deploy@<full-release-sha> # v3.0.0
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -52,9 +52,22 @@ jobs:
           use-adopt: false
 ```
 
-The `CI` workflow must be named `CI`, run for `push` and `pull_request`, and check out the pull request head SHA. Keep the triggers, permissions, and environment-based concurrency from the template.
+The `CI` workflow must be named `CI`, run for `push` and `pull_request`, check out the pull request head SHA, and upload the built Worker bundle as an artifact before succeeding. Keep the triggers, permissions, and environment-based concurrency from the template.
 
-Commands receive the stage in the `STAGE` environment variable. Quote it inside each command as shown above. The action sets `STAGE` to the configured production stage for production and `pr-<number>` for previews.
+Production commands receive the stage in `STAGE`. PR Preview deploy and cleanup use the trusted action-owned stack and the `pr-<number>` stage; they never run consumer commands.
+
+Add an upload step after the credential-free Worker build in CI. Adjust `path` and `preview-entrypoint` to the output of the project's bundler:
+
+```yaml
+- name: Upload Worker Preview bundle
+  uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+  with:
+    name: alchemy-worker
+    path: path/to/built-worker/
+    if-no-files-found: error
+```
+
+Upload every runtime module needed by the bundle. Do not upload Alchemy stack files or build scripts, and do not rely on executing a post-download build. Alchemy beta.79 reads the prebuilt files as bytes and uses `preview: { of: <production-worker> }`.
 
 Add these repository secrets:
 
@@ -68,13 +81,15 @@ Add these repository secrets:
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
 | `worker-name` | Yes |  | Base Cloudflare Worker name. |
-| `deploy-command` | Yes |  | Alchemy deploy command. It must use `$STAGE` to select the stage. |
-| `destroy-command` | Yes |  | Alchemy destroy command for preview cleanup. It must use `$STAGE`. |
+| `deploy-command` | Yes |  | Trusted production deploy command. It must use `$STAGE` to select the stage. |
+| `destroy-command` | Yes |  | Retained for compatibility; first-class Preview cleanup uses the trusted Alchemy stack. |
 | `production-url` | Yes |  | Canonical HTTPS URL for the production deployment. |
 | `production-stage` | No | `prod` | Alchemy stage reserved for production. |
 | `use-adopt` | No | `false` | Append `--adopt` to the deploy command. |
-| `worker-config` | No |  | Optional value passed as `ALCHEMY_WORKER_CONFIG`. |
-| `preview-url-pattern` | No | `https://{worker}-{stage}.*.workers.dev` | URL glob used to find the preview URL in deploy output. It must contain `{worker}` and `{stage}`. `*` matches one URL path segment. |
+| `worker-config` | No |  | Optional JSON object of environment bindings for the trusted Preview stack. |
+| `preview-artifact` | No | `alchemy-worker` | CI artifact name containing the complete Worker bundle. |
+| `preview-entrypoint` | No | `index.js` | Entrypoint path relative to the artifact root; it must resolve to a regular file inside the artifact. |
+| `preview-url-pattern` | No | `https://{stage}-{worker}.*.workers.dev` | URL glob for the Preview URL. It must contain `{worker}` and `{stage}`. First-class Preview URLs use stage-worker ordering. `*` matches one URL path segment. |
 | `ci-workflow` | No | `ci.yml` | CI workflow file used for exact-SHA gating. |
 | `production-branch` | No | `main` | Branch allowed to deploy production. |
 | `install-command` | No | `bun install --frozen-lockfile` | Frozen Bun dependency installation command. |
@@ -127,14 +142,14 @@ jobs:
           production-url: https://<worker>.example.com
 ```
 
-The reconcile finds preview stages from the repository's GitHub Deployment records, resolves each one's pull request, and destroys the stage with the configured `destroy-command` when the pull request is closed. Stages whose pull request is still open, or whose pull request lookup failed, are left untouched.
+The reconcile finds this action's Preview records, resolves each pull request, and deletes only the matching first-class Preview when the pull request is closed. Stages whose pull request is still open, or whose lookup failed, are left untouched. Destroying a Preview does not destroy its parent production Worker.
 
 ## How It Works
 
 - Production deploys run only from a successful `workflow_run` for `production-branch`.
-- Preview deploys run from trusted default-branch action code through `workflow_run` and only for open, same-repository pull requests.
+- Preview deploys run from trusted default-branch action code through `workflow_run` and only for open, same-repository pull requests. The action downloads the artifact from the exact successful CI run and does not check out the PR commit.
 - Before deploying, the action finds a successful CI run whose `head_sha` exactly matches the candidate commit.
-- The deployment checks out that exact commit with checkout credentials removed.
+- Production checks out the exact trusted production commit with checkout credentials removed. PR previews consume only the opaque artifact from the exact CI run.
 - A successful preview is reported in one durable pull request comment, including the deployment and Cloudflare log links.
 - Closing a same-repository pull request destroys its `pr-<number>` stage before the related GitHub Deployment records are deleted.
 - A scheduled reconcile destroys any `pr-<number>` stage whose pull request is closed but whose cleanup never ran, then deletes the leftover GitHub Deployment records.
@@ -142,9 +157,21 @@ The reconcile finds preview stages from the repository's GitHub Deployment recor
 
 ## Security
 
-Same-repository pull request code runs during preview deployment with Cloudflare credentials. Treat repository write access as secret-bearing access, use a narrowly scoped Cloudflare token, and protect a deployment environment with required reviewers when repository trust warrants it.
+The PR artifact is untrusted input. The trusted action validates that the selected entrypoint remains a regular file inside the artifact, and Alchemy reads the bundle with `bundle: false` without evaluating it in the credentialed deployment process. Keep CI builds credential-free. The deployed Worker runs on Cloudflare, so configure its bindings deliberately. Worker Preview service bindings may still target production services; use a separate Alchemy stage when the whole infrastructure environment must be isolated.
 
-The action passes configured commands through environment variables instead of interpolating them into generated shell source. Inputs are trusted repository configuration, not pull request data. API failures preserve the operation and HTTP status without exposing tokens.
+## Worker Preview semantics
+
+This integration uses Alchemy `2.0.0-beta.79`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). That release models branch/PR Previews as first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
+
+Do not treat every Alchemy `version` as a PR Preview:
+
+- Use `preview.of` for a named branch/PR Preview with its own URL and isolated same-Worker Durable Object state.
+- Use `version.parent` with `version.traffic` for a canary or gradual rollout of the parent Worker.
+- Use `version.traffic: 0` when uploading a Worker version without routing production traffic.
+
+Previews are not a full multi-service stage: service bindings may still resolve to production Workers, and production routes, crons, and queue consumers remain attached to the parent. Keep a separate Alchemy stage when the PR needs isolated databases, services, or other infrastructure. Previews are public unless the parent is protected; custom-domain Preview URLs require `domain: { name, previews: true }` on the parent and Cloudflare private-beta availability.
+
+The action passes configured commands through environment variables instead of interpolating them into generated shell source. PR-controlled source, build scripts, and Alchemy configuration are never run with Cloudflare or GitHub write credentials. API failures preserve the operation and HTTP status without exposing tokens.
 
 ## Pinning Releases
 

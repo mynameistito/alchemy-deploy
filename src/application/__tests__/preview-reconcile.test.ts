@@ -9,6 +9,7 @@ const candidate = (stage: string, pullRequest: number): PreviewCandidate => ({
   pullRequest,
   sha: "a".repeat(40),
   stage,
+  worker: "api",
 });
 
 const ports = (

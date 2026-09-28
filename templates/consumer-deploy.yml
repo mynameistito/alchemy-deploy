@@ -24,7 +24,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Run Alchemy deployment
-        # SECURITY: same-repository preview code runs with Cloudflare credentials; protect this job/environment.
+        # PR previews download a credential-free Worker artifact from the exact successful CI run.
         # REQUIRED: replace this placeholder with the full 40-character SHA of a published v2 release.
         uses: mynameistito/alchemy-deploy@REPLACE_WITH_FULL_40_CHARACTER_RELEASE_SHA
         env:
@@ -50,7 +50,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Reconcile preview deployments
-        # SECURITY: same-repository preview code runs with Cloudflare credentials; protect this job/environment.
+        # Cleanup runs the trusted action-owned Alchemy stack, never PR code.
         # REQUIRED: replace this placeholder with the full 40-character SHA of a published v2 release.
         uses: mynameistito/alchemy-deploy@REPLACE_WITH_FULL_40_CHARACTER_RELEASE_SHA
         env:

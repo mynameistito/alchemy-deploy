@@ -54,7 +54,12 @@ const main = async (): Promise<number> => {
     return 1;
   }
   const productionStage = Bun.env.PRODUCTION_STAGE ?? "prod";
-  const destroyCommand = Bun.env.DESTROY_COMMAND ?? "";
+  const actionPath = Bun.env.ALCHEMY_ACTION_PATH;
+  if (!actionPath) {
+    return fail(
+      new Error("ALCHEMY_ACTION_PATH is required for Worker Previews")
+    );
+  }
   const logDirectory = Bun.env.RUNNER_TEMP ?? ".";
   const runUrl = `${serverUrl.value}/${repository.value}/actions/runs/${runId.value}`;
   const github = createGitHubApi({
@@ -84,7 +89,7 @@ const main = async (): Promise<number> => {
       worker: worker.value,
     };
     const command: ConsumerCommand = {
-      command: destroyCommand,
+      command: `bun "$ALCHEMY_ACTION_PATH/node_modules/alchemy/bin/cli.js" destroy --config "$ALCHEMY_ACTION_PATH/src/worker-preview.run.ts" --stage "$STAGE" --yes`,
       environment: { STAGE: stage.value.value },
       logPath: `${logDirectory}/alchemy-${stage.value.value}.log`,
     };
@@ -108,7 +113,7 @@ const main = async (): Promise<number> => {
       const deployments = await github.listPreviewDeployments();
       return deployments._tag === "err"
         ? err(new Error(deployments.error.message))
-        : ok(previewCandidates(deployments.value));
+        : ok(previewCandidates(deployments.value, worker.value));
     },
     cleanup,
     diagnostic,
