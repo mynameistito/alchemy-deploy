@@ -38,7 +38,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Run Alchemy deployment
-        uses: mynameistito/alchemy-deploy@<full-release-sha> # v3.0.0
+        uses: mynameistito/alchemy-deploy@<full-release-sha> # v3.1.0
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
