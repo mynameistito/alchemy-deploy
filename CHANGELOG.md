@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.0
+
+### Minor Changes
+
+- 7f89ef9: Allow Worker Preview artifacts to include a validated static asset directory and pass its routing configuration to Alchemy.
+
 ## 3.0.0
 
 ### Major Changes
