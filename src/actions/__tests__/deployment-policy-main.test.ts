@@ -18,6 +18,7 @@ const environment = (overrides: Record<string, string> = {}) => ({
   PULL_REQUEST_NUMBER: "42",
   REPOSITORY: "owner/repo",
   REPOSITORY_ID: "7",
+  WORKER_NAME: "api",
   WORKFLOW_RUN_BRANCH: "feature",
   WORKFLOW_RUN_CONCLUSION: "success",
   WORKFLOW_RUN_EVENT: "pull_request",
@@ -174,10 +175,22 @@ describe("deployment policy action boundary", () => {
       {},
       github({
         listDeployments: () =>
-          Promise.resolve(ok([{ id: 1, sha, state: "in_progress" }])),
+          Promise.resolve(
+            ok([{ id: 1, sha, state: "in_progress", worker: "api" }])
+          ),
       })
     );
     expect(decisionKind(duplicate)).toBe("noop");
+    const independentWorker = await outputs(
+      {},
+      github({
+        listDeployments: () =>
+          Promise.resolve(
+            ok([{ id: 2, sha, state: "in_progress", worker: "other" }])
+          ),
+      })
+    );
+    expect(decisionKind(independentWorker)).toBe("deploy");
   });
 
   test("gates production on the current branch and only cleans valid PR stages", async () => {

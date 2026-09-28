@@ -52,6 +52,14 @@ const resolveLinks = async (
     : ok({ deploymentUrl: deployment.value, logsUrl: logs.value });
 };
 
+const trustedPreviewCommand = (operation: "deploy" | "destroy"): string => {
+  const actionPath = Bun.env.ALCHEMY_ACTION_PATH;
+  if (!actionPath) {
+    throw new Error("ALCHEMY_ACTION_PATH is required for Worker Previews");
+  }
+  return `bun "$ALCHEMY_ACTION_PATH/node_modules/alchemy/bin/cli.js" ${operation} --config "$ALCHEMY_ACTION_PATH/src/worker-preview.run.ts" --stage "$STAGE" --yes`;
+};
+
 const main = async (): Promise<number> => {
   const phase = required("PHASE");
   const token = required("GITHUB_TOKEN");
@@ -80,10 +88,16 @@ const main = async (): Promise<number> => {
   });
   const deployCommand = Bun.env.DEPLOY_COMMAND ?? "";
   const adoptFlag = Bun.env.USE_ADOPT === "true" ? " --adopt" : "";
-  const commandText =
-    mode === "create"
-      ? `${deployCommand}${adoptFlag}`
-      : (Bun.env.DESTROY_COMMAND ?? "");
+  let commandText: string;
+  if (context.stage._tag === "preview") {
+    commandText = trustedPreviewCommand(
+      mode === "create" ? "deploy" : "destroy"
+    );
+  } else if (mode === "create") {
+    commandText = `${deployCommand}${adoptFlag}`;
+  } else {
+    commandText = Bun.env.DESTROY_COMMAND ?? "";
+  }
   const command: ConsumerCommand = {
     command: commandText,
     environment: {

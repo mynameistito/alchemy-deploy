@@ -187,8 +187,12 @@ describe("composite action contract", () => {
         default: "bun install --frozen-lockfile",
         required: false,
       },
+      "preview-artifact": { default: "alchemy-worker", required: false },
+      "preview-compatibility-date": { default: "", required: false },
+      "preview-compatibility-flags": { default: "[]", required: false },
+      "preview-entrypoint": { default: "index.js", required: false },
       "preview-url-pattern": {
-        default: "https://{worker}-{stage}.*.workers.dev",
+        default: "https://{stage}-{worker}.*.workers.dev",
         required: false,
       },
       "production-branch": { default: "main", required: false },
@@ -213,6 +217,9 @@ describe("composite action contract", () => {
     );
     expect(resolveEnv.REPOSITORY_ID).toContain("github.repository_id");
     expect(resolveEnv.WORKFLOW_RUN_ID).toContain("workflow_run.workflow_id");
+    expect(inputs["preview-url-pattern"]).toMatchObject({
+      default: "https://{stage}-{worker}.*.workers.dev",
+    });
     expect(orchestrationEnv.PREVIEW_PATTERN).toContain(
       "inputs.preview-url-pattern"
     );
@@ -222,9 +229,17 @@ describe("composite action contract", () => {
     );
 
     expect(resolve.id).toBe("resolve");
-    expect(indexOfStep(steps, "Check out exact consumer commit")).toBeLessThan(
-      indexOfStep(steps, "Run typed deployment orchestration")
+    const checkout = stepNamed(
+      steps,
+      "Check out exact trusted production commit"
     );
+    expect(checkout.if).toContain("steps.resolve.outputs.preview != 'true'");
+    expect(
+      stepNamed(steps, "Download artifact from the exact successful CI run").if
+    ).toContain("steps.resolve.outputs.preview == 'true'");
+    expect(
+      indexOfStep(steps, "Download artifact from the exact successful CI run")
+    ).toBeLessThan(indexOfStep(steps, "Run typed deployment orchestration"));
     expect(orchestration.if).toContain("steps.resolve.outputs.deploy");
     expect(
       steps.some((step) => {
@@ -280,17 +295,41 @@ describe("composite action contract", () => {
     });
   });
 
-  test("does not expose GitHub credentials to consumer-controlled commands", async () => {
+  test("routes PR Worker Previews through trusted Alchemy and opaque artifacts", async () => {
     const steps = stepsFor(await action());
     const environment = envFor(
       stepNamed(steps, "Run typed deployment orchestration")
     );
-    expect(environment.GITHUB_TOKEN).toContain("env.GITHUB_TOKEN");
-    expect(environment.CLOUDFLARE_API_TOKEN).toContain(
-      "env.CLOUDFLARE_API_TOKEN"
+    const orchestration = await readFile(
+      "src/actions/deployment-orchestration-main.ts",
+      "utf-8"
     );
-    expect(environment.CLOUDFLARE_ACCOUNT_ID).toContain(
-      "env.CLOUDFLARE_ACCOUNT_ID"
+    const previewStack = await readFile("src/worker-preview.run.ts", "utf-8");
+    expect(environment.GITHUB_TOKEN).toContain("env.GITHUB_TOKEN");
+    expect(orchestration).toContain('context.stage._tag === "preview"');
+    expect(orchestration).toContain("src/worker-preview.run.ts");
+    expect(previewStack).toContain("bundle: false");
+    expect(previewStack).toContain("preview: {");
+    expect(previewStack).toContain('of: required("WORKER_NAME")');
+    expect(previewStack).toContain("compatibility: previewCompatibility()");
+    expect(environment.ALCHEMY_PREVIEW_COMPATIBILITY_DATE).toContain(
+      "inputs.preview-compatibility-date"
+    );
+    expect(environment.ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS).toContain(
+      "inputs.preview-compatibility-flags"
+    );
+    const reconcileEnvironment = envFor(
+      stepNamed(steps, "Run scheduled preview reconcile")
+    );
+    expect(reconcileEnvironment.ALCHEMY_PREVIEW_COMPATIBILITY_DATE).toContain(
+      "inputs.preview-compatibility-date"
+    );
+    expect(reconcileEnvironment.ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS).toContain(
+      "inputs.preview-compatibility-flags"
+    );
+    expect(previewStack).not.toContain("version:");
+    expect(environment.ALCHEMY_PREVIEW_ARTIFACT).toContain(
+      ["${", "{ runner.temp }}", "/alchemy-preview"].join("")
     );
   });
 
@@ -315,7 +354,8 @@ describe("composite action contract", () => {
     expect(policySetup.with).toEqual({ "bun-version": "1.4.2" });
     for (const name of [
       "Install trusted action dependencies",
-      "Set up Bun",
+      "Set up Bun for artifact-only preview",
+      "Set up Bun from checked-out package",
       "Install dependencies",
     ]) {
       const environment = envFor(stepNamed(steps, name));
@@ -323,5 +363,13 @@ describe("composite action contract", () => {
       expect(environment.CLOUDFLARE_ACCOUNT_ID).toBe("");
       expect(environment.CLOUDFLARE_API_TOKEN).toBe("");
     }
+    expect(
+      record.parse(
+        stepNamed(steps, "Set up Bun for artifact-only preview").with
+      )
+    ).toEqual({ "bun-version": "1.4.2" });
+    expect(
+      record.parse(stepNamed(steps, "Set up Bun from checked-out package").with)
+    ).toEqual({ "bun-version-file": "package.json" });
   });
 });

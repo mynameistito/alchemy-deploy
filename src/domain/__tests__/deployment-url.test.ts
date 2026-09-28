@@ -23,7 +23,7 @@ describe("deployment URL resolution", () => {
       stage,
       worker,
       {
-        previewUrlPattern: "https://{worker}-{stage}.*.workers.dev",
+        previewUrlPattern: "https://{stage}-{worker}.*.workers.dev",
         productionUrl: "https://x-lookup.example.com/path",
       }
     );
@@ -36,17 +36,17 @@ describe("deployment URL resolution", () => {
   test("selects only the configured stage URL and strips punctuation", () => {
     const { stage, worker } = fixture("pr-42");
     const result = resolveDeploymentUrl(
-      "old https://x-lookup-pr-41.foo.workers.dev new (https://x-lookup-pr-42.foo.workers.dev).",
+      "old https://pr-41-x-lookup.foo.workers.dev new (https://pr-42-x-lookup.foo.workers.dev).",
       stage,
       worker,
       {
-        previewUrlPattern: "https://{worker}-{stage}.*.workers.dev",
+        previewUrlPattern: "https://{stage}-{worker}.*.workers.dev",
         productionUrl: "https://x-lookup.example.com",
       }
     );
     expect(result).toEqual({
       _tag: "ok",
-      value: "https://x-lookup-pr-42.foo.workers.dev",
+      value: "https://pr-42-x-lookup.foo.workers.dev",
     });
   });
 
@@ -61,7 +61,15 @@ describe("deployment URL resolution", () => {
     expect(cloudflareLogsUrl("account/id", worker, stage)).toEqual({
       _tag: "ok",
       value:
-        "https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/x-lookup-pr-5/production/logs",
+        "https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/x-lookup/pr-5/logs",
+    });
+    const production = fixture("prod");
+    expect(
+      cloudflareLogsUrl("account/id", production.worker, production.stage)
+    ).toEqual({
+      _tag: "ok",
+      value:
+        "https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/x-lookup/production/logs",
     });
   });
 });

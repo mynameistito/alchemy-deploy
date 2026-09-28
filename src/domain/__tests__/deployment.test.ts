@@ -49,7 +49,7 @@ describe("deployment input parsing", () => {
       throw new Error("test fixture failed to parse");
     }
     expect(physicalWorkerName(worker.value, preview.value)).toBe(
-      "x-lookup-pr-7"
+      "pr-7-x-lookup"
     );
   });
 });

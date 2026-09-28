@@ -162,6 +162,8 @@ export interface GitHubPreviewDeployment {
   readonly environment: string;
   /** Commit SHA recorded on the deployment. */
   readonly sha: string;
+  /** Worker identity stored in the deployment payload. */
+  readonly worker: string;
 }
 
 /** Read operations required by the scheduled preview reconcile. */
@@ -624,8 +626,8 @@ export const createGitHubApi = (
       }
       return ok(values);
     },
-    listPreviewDeployments: () =>
-      paginate(
+    listPreviewDeployments: async () => {
+      const result = await paginate(
         "list preview deployments",
         `${root}/deployments?per_page=100`,
         (input) => {
@@ -633,13 +635,31 @@ export const createGitHubApi = (
           if (!environment.success) {
             return;
           }
-          const sha = z.string().safeParse(input.sha);
+          const sha = z
+            .string()
+            .regex(/^[0-9a-f]{40}$/u)
+            .safeParse(input.sha);
+          const payload = githubObjectSchema.safeParse(input.payload);
+          const worker = payload.success
+            ? z.string().safeParse(payload.data.worker)
+            : undefined;
           return {
             environment: environment.data,
-            sha: sha.success ? sha.data : "",
+            sha: sha?.success ? sha.data : "",
+            worker: worker?.success ? worker.data : "",
           };
         }
-      ),
+      );
+      return result._tag === "err"
+        ? result
+        : ok(
+            result.value.filter(
+              (deployment) =>
+                /^[0-9a-f]{40}$/u.test(deployment.sha) &&
+                deployment.worker.length > 0
+            )
+          );
+    },
     updateComment: async (commentId, body) => {
       const response = await write(
         "update comment",

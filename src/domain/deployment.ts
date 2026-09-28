@@ -122,7 +122,7 @@ export const physicalWorkerName = (
   worker: WorkerName,
   stage: DeploymentStage
 ): string =>
-  stage._tag === "production" ? worker : `${worker}-${stage.value}`;
+  stage._tag === "production" ? worker : `${stage.value}-${worker}`;
 
 /** Return whether a stage is safe for automated teardown. */
 export const isPreviewStage = (

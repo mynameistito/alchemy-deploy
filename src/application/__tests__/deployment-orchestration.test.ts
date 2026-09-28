@@ -53,7 +53,7 @@ const deployPlan = (): DeploymentOrchestrationPlan => ({
     outcome: "success",
     stage: context().stage,
     urlConfig: {
-      previewUrlPattern: "https://{worker}-{stage}.*.workers.dev",
+      previewUrlPattern: "https://{stage}-{worker}.*.workers.dev",
       productionUrl: "https://worker.example.com",
     },
     worker: context().worker,
@@ -72,7 +72,7 @@ const portsFor = (overrides: Partial<DeploymentOrchestrationPorts> = {}) => {
     links: () =>
       Promise.resolve(
         ok({
-          deploymentUrl: "https://worker-pr-42.example.com",
+          deploymentUrl: "https://pr-42-worker.example.com",
           logsUrl: "https://dash.cloudflare.com/logs",
         })
       ),

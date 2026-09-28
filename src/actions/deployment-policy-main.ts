@@ -8,7 +8,7 @@ import type {
   PolicyInput,
   PolicyDecision,
 } from "@/domain/deployment-policy.ts";
-import { parseDeploymentStage } from "@/domain/deployment.ts";
+import { parseDeploymentStage, parseWorkerName } from "@/domain/deployment.ts";
 import { createGitHubApi } from "@/github/github-api.ts";
 import type {
   GitHubDeployment,
@@ -74,7 +74,8 @@ const resolveClosedPullRequest = (
 
 const alreadyDeploying = async (
   decision: PolicyDecision,
-  github: GitHubPolicyPort
+  github: GitHubPolicyPort,
+  worker: string
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   if (decision.kind !== "deploy") {
     return ok(decision);
@@ -89,7 +90,10 @@ const alreadyDeploying = async (
     ): deployment is GitHubDeployment & {
       readonly sha: string;
       readonly state: string;
-    } => Boolean(deployment.sha && deployment.state)
+    } =>
+      Boolean(
+        deployment.sha && deployment.state && deployment.worker === worker
+      )
   );
   return hasActiveDeployment(activeDeployments, decision.sha)
     ? ok({
@@ -102,7 +106,8 @@ const alreadyDeploying = async (
 const resolvePullRequestWorkflow = async (
   baseInput: PolicyInput,
   environment: PolicyEnvironment,
-  github: GitHubPolicyPort
+  github: GitHubPolicyPort,
+  worker: string
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   const number = integer(environment.PULL_REQUEST_NUMBER);
   if (!number) {
@@ -114,14 +119,16 @@ const resolvePullRequestWorkflow = async (
   }
   return alreadyDeploying(
     deploymentPolicy({ ...baseInput, pullRequest: pullRequest.value }),
-    github
+    github,
+    worker
   );
 };
 
 const resolvePushWorkflow = async (
   baseInput: PolicyInput,
   branch: string,
-  github: GitHubPolicyPort
+  github: GitHubPolicyPort,
+  worker: string
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   const current = await github.getBranchSha(branch);
   if (current._tag === "err") {
@@ -129,13 +136,15 @@ const resolvePushWorkflow = async (
   }
   return alreadyDeploying(
     deploymentPolicy({ ...baseInput, currentMainSha: current.value }),
-    github
+    github,
+    worker
   );
 };
 
 const resolveWorkflowRun = async (
   environment: PolicyEnvironment,
-  github: GitHubPolicyPort
+  github: GitHubPolicyPort,
+  worker: string
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   if (environment.WORKFLOW_RUN_CONCLUSION !== "success") {
     return ok({ kind: "noop", reason: "CI did not succeed" });
@@ -189,10 +198,15 @@ const resolveWorkflowRun = async (
     baseInput = { ...baseInput, event: environment.WORKFLOW_RUN_EVENT };
   }
   if (baseInput.event === "pull_request") {
-    return resolvePullRequestWorkflow(baseInput, environment, github);
+    return resolvePullRequestWorkflow(baseInput, environment, github, worker);
   }
   if (baseInput.event === "push") {
-    return resolvePushWorkflow(baseInput, configuredBranch.value, github);
+    return resolvePushWorkflow(
+      baseInput,
+      configuredBranch.value,
+      github,
+      worker
+    );
   }
   return ok(deploymentPolicy(baseInput));
 };
@@ -219,7 +233,11 @@ const resolve = (
       ok({ kind: "noop", reason: "unsupported action event" })
     );
   }
-  return resolveWorkflowRun(environment, github);
+  const worker = parseWorkerName(environment.WORKER_NAME);
+  if (worker._tag === "err") {
+    return Promise.resolve(err(new PolicyRuntimeError(worker.error.message)));
+  }
+  return resolveWorkflowRun(environment, github, worker.value);
 };
 
 /** Recheck the trusted commit immediately before running consumer code. */

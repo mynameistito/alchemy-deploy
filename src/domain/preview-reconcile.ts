@@ -4,6 +4,8 @@ export interface DeploymentEnvironment {
   readonly environment: string;
   /** Commit SHA recorded on the deployment. */
   readonly sha: string;
+  /** Action worker identity stored in the GitHub deployment payload. */
+  readonly worker: string;
 }
 
 /** A preview stage discovered from GitHub deployment records. */
@@ -14,6 +16,8 @@ export interface PreviewCandidate {
   readonly sha: string;
   /** Preview stage value, `pr-<number>`. */
   readonly stage: string;
+  /** Action worker identity stored in the GitHub deployment payload. */
+  readonly worker: string;
 }
 
 const PREVIEW_ENVIRONMENT = /^pr-[1-9]\d*$/u;
@@ -26,13 +30,15 @@ const PREVIEW_PREFIX = "pr-";
  * yields the newest deployment of each stage.
  */
 export const previewCandidates = (
-  deployments: readonly DeploymentEnvironment[]
+  deployments: readonly DeploymentEnvironment[],
+  worker: string
 ): readonly PreviewCandidate[] => {
   const candidates: PreviewCandidate[] = [];
   const seen = new Set<string>();
   for (const deployment of deployments) {
     if (
       !PREVIEW_ENVIRONMENT.test(deployment.environment) ||
+      deployment.worker !== worker ||
       seen.has(deployment.environment)
     ) {
       continue;
@@ -42,6 +48,7 @@ export const previewCandidates = (
       pullRequest: Number(deployment.environment.slice(PREVIEW_PREFIX.length)),
       sha: deployment.sha,
       stage: deployment.environment,
+      worker: deployment.worker,
     });
   }
   return candidates;

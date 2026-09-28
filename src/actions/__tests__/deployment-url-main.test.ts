@@ -8,7 +8,7 @@ import { runDeploymentUrl } from "@/actions/deployment-url-main.ts";
 const base = {
   ACCOUNT_ID: "account/id",
   OUTCOME: "success",
-  PREVIEW_PATTERN: "https://{worker}-{stage}.*.workers.dev",
+  PREVIEW_PATTERN: "https://{stage}-{worker}.*.workers.dev",
   PRODUCTION_STAGE: "prod",
   PRODUCTION_URL: "https://worker.example.com/path",
   STAGE: "pr-42",
@@ -26,7 +26,7 @@ const fixture = async (log: string) => {
 describe("deployment URL action entrypoint", () => {
   test("reads deployment output and writes preview and logs links", async () => {
     const paths = await fixture(
-      "noise (https://worker-pr-42.foo.workers.dev)."
+      "noise (https://pr-42-worker.foo.workers.dev)."
     );
     expect(
       await runDeploymentUrl({
@@ -36,8 +36,8 @@ describe("deployment URL action entrypoint", () => {
       })
     ).toBe(0);
     expect(await readFile(paths.outputPath, "utf-8")).toBe(
-      "logs-url=https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/worker-pr-42/production/logs\n" +
-        "deployment-url=https://worker-pr-42.foo.workers.dev\n"
+      "logs-url=https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/worker/pr-42/logs\n" +
+        "deployment-url=https://pr-42-worker.foo.workers.dev\n"
     );
   });
 
@@ -70,7 +70,7 @@ describe("deployment URL action entrypoint", () => {
   });
 
   test("rejects malformed, insecure, unmatched, and incomplete input", async () => {
-    const paths = await fixture("https://worker-pr-42.foo.workers.dev");
+    const paths = await fixture("https://pr-42-worker.foo.workers.dev");
     const cases = [
       { ...base, ...paths, PREVIEW_PATTERN: "https://*.workers.dev" },
       {
