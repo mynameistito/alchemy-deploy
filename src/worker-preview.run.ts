@@ -19,6 +19,11 @@ type JsonValue =
   | number
   | string;
 
+interface WorkerCompatibility {
+  date?: string;
+  flags?: string[];
+}
+
 const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
     z.boolean(),
@@ -70,6 +75,27 @@ const parseWorkerEnvironment = (): Record<string, JsonValue> => {
   return result.data;
 };
 
+const previewCompatibility = () => {
+  const date = Bun.env.ALCHEMY_PREVIEW_COMPATIBILITY_DATE?.trim();
+  const flagsInput =
+    Bun.env.ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS?.trim() || "[]";
+  const flags: unknown = JSON.parse(flagsInput);
+  const result = z.array(z.string()).safeParse(flags);
+  if (!result.success) {
+    throw new Error(
+      "ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS must be a JSON array of strings"
+    );
+  }
+  const compatibility: WorkerCompatibility = {};
+  if (date) {
+    compatibility.date = date;
+  }
+  if (result.data.length > 0) {
+    compatibility.flags = result.data;
+  }
+  return compatibility;
+};
+
 const deploymentAnnotation =
   Bun.env.PHASE === "cleanup"
     ? {}
@@ -81,6 +107,7 @@ const deploymentAnnotation =
 const workerPreviewStack = function* workerPreviewStack() {
   const preview = yield* Worker("WorkerPreview", {
     bundle: false,
+    compatibility: previewCompatibility(),
     env: parseWorkerEnvironment(),
     main: yield* effectPromise(artifactEntrypoint),
     preview: {

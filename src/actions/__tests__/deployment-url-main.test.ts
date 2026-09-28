@@ -36,7 +36,7 @@ describe("deployment URL action entrypoint", () => {
       })
     ).toBe(0);
     expect(await readFile(paths.outputPath, "utf-8")).toBe(
-      "logs-url=https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/worker/production/logs\n" +
+      "logs-url=https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/worker/pr-42/logs\n" +
         "deployment-url=https://pr-42-worker.foo.workers.dev\n"
     );
   });

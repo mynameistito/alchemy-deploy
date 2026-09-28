@@ -94,7 +94,7 @@ export const resolveDeploymentUrl = (
 export const cloudflareLogsUrl = (
   accountId: string,
   worker: WorkerName,
-  _stage: DeploymentStage
+  stage: DeploymentStage
 ): Result<string, DeploymentUrlError> => {
   if (!accountId.trim()) {
     return err(new DeploymentUrlError("cloudflare-account-id is required"));
@@ -102,7 +102,11 @@ export const cloudflareLogsUrl = (
   // First-class Previews belong to the parent Worker, not a separate script.
   const service = encodeURIComponent(worker);
   const account = encodeURIComponent(accountId);
+  const environment =
+    stage._tag === "production"
+      ? "production"
+      : encodeURIComponent(stage.value);
   return ok(
-    `https://dash.cloudflare.com/?to=/${account}/workers/services/view/${service}/production/logs`
+    `https://dash.cloudflare.com/?to=/${account}/workers/services/view/${service}/${environment}/logs`
   );
 };

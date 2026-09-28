@@ -33,6 +33,14 @@ inputs:
     description: Entrypoint path inside the Worker artifact, relative to the artifact root
     default: index.js
     required: false
+  preview-compatibility-date:
+    description: Compatibility date for the preview Worker; set to the production Worker date
+    default: ""
+    required: false
+  preview-compatibility-flags:
+    description: JSON array of compatibility flags for the preview Worker
+    default: "[]"
+    required: false
   preview-url-pattern:
     description: URL glob containing {worker}, {stage}, and optionally *; Worker Preview URLs use stage-worker ordering
     default: https://{stage}-{worker}.*.workers.dev
@@ -122,8 +130,18 @@ runs:
         ref: ${{ github.event.repository.default_branch }}
         persist-credentials: false
 
-    - name: Set up Bun
-      if: steps.resolve.outputs.deploy == 'true' || steps.resolve.outputs.cleanup == 'true' || inputs.reconcile == 'true'
+    - name: Set up Bun for artifact-only preview
+      if: steps.resolve.outputs.deploy == 'true' && steps.resolve.outputs.preview == 'true'
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      with:
+        bun-version: 1.4.2
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ""
+        CLOUDFLARE_API_TOKEN: ""
+        GITHUB_TOKEN: ""
+
+    - name: Set up Bun from checked-out package
+      if: (steps.resolve.outputs.deploy == 'true' && steps.resolve.outputs.preview != 'true') || steps.resolve.outputs.cleanup == 'true' || inputs.reconcile == 'true'
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
         bun-version-file: package.json
@@ -161,6 +179,8 @@ runs:
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
         ALCHEMY_PREVIEW_ARTIFACT: ${{ runner.temp }}/alchemy-preview
         ALCHEMY_PREVIEW_ENTRYPOINT: ${{ inputs.preview-entrypoint }}
+        ALCHEMY_PREVIEW_COMPATIBILITY_DATE: ${{ inputs.preview-compatibility-date }}
+        ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS: ${{ inputs.preview-compatibility-flags }}
         ALCHEMY_ACTION_PATH: ${{ github.action_path }}
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
@@ -206,6 +226,8 @@ runs:
         GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         ALCHEMY_ACTION_PATH: ${{ github.action_path }}
+        ALCHEMY_PREVIEW_COMPATIBILITY_DATE: ${{ inputs.preview-compatibility-date }}
+        ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS: ${{ inputs.preview-compatibility-flags }}
         PHASE: cleanup
         PRODUCTION_STAGE: ${{ inputs.production-stage }}
         REPOSITORY_ID: ${{ github.repository_id }}

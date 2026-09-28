@@ -188,6 +188,8 @@ describe("composite action contract", () => {
         required: false,
       },
       "preview-artifact": { default: "alchemy-worker", required: false },
+      "preview-compatibility-date": { default: "", required: false },
+      "preview-compatibility-flags": { default: "[]", required: false },
       "preview-entrypoint": { default: "index.js", required: false },
       "preview-url-pattern": {
         default: "https://{stage}-{worker}.*.workers.dev",
@@ -309,6 +311,22 @@ describe("composite action contract", () => {
     expect(previewStack).toContain("bundle: false");
     expect(previewStack).toContain("preview: {");
     expect(previewStack).toContain('of: required("WORKER_NAME")');
+    expect(previewStack).toContain("compatibility: previewCompatibility()");
+    expect(environment.ALCHEMY_PREVIEW_COMPATIBILITY_DATE).toContain(
+      "inputs.preview-compatibility-date"
+    );
+    expect(environment.ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS).toContain(
+      "inputs.preview-compatibility-flags"
+    );
+    const reconcileEnvironment = envFor(
+      stepNamed(steps, "Run scheduled preview reconcile")
+    );
+    expect(reconcileEnvironment.ALCHEMY_PREVIEW_COMPATIBILITY_DATE).toContain(
+      "inputs.preview-compatibility-date"
+    );
+    expect(reconcileEnvironment.ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS).toContain(
+      "inputs.preview-compatibility-flags"
+    );
     expect(previewStack).not.toContain("version:");
     expect(environment.ALCHEMY_PREVIEW_ARTIFACT).toContain(
       ["${", "{ runner.temp }}", "/alchemy-preview"].join("")
@@ -336,7 +354,8 @@ describe("composite action contract", () => {
     expect(policySetup.with).toEqual({ "bun-version": "1.4.2" });
     for (const name of [
       "Install trusted action dependencies",
-      "Set up Bun",
+      "Set up Bun for artifact-only preview",
+      "Set up Bun from checked-out package",
       "Install dependencies",
     ]) {
       const environment = envFor(stepNamed(steps, name));
@@ -344,5 +363,13 @@ describe("composite action contract", () => {
       expect(environment.CLOUDFLARE_ACCOUNT_ID).toBe("");
       expect(environment.CLOUDFLARE_API_TOKEN).toBe("");
     }
+    expect(
+      record.parse(
+        stepNamed(steps, "Set up Bun for artifact-only preview").with
+      )
+    ).toEqual({ "bun-version": "1.4.2" });
+    expect(
+      record.parse(stepNamed(steps, "Set up Bun from checked-out package").with)
+    ).toEqual({ "bun-version-file": "package.json" });
   });
 });

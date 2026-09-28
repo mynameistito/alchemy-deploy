@@ -61,6 +61,14 @@ describe("deployment URL resolution", () => {
     expect(cloudflareLogsUrl("account/id", worker, stage)).toEqual({
       _tag: "ok",
       value:
+        "https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/x-lookup/pr-5/logs",
+    });
+    const production = fixture("prod");
+    expect(
+      cloudflareLogsUrl("account/id", production.worker, production.stage)
+    ).toEqual({
+      _tag: "ok",
+      value:
         "https://dash.cloudflare.com/?to=/account%2Fid/workers/services/view/x-lookup/production/logs",
     });
   });

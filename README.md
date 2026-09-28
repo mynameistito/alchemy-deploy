@@ -89,6 +89,8 @@ Add these repository secrets:
 | `worker-config` | No |  | Optional JSON object of environment bindings for the trusted Preview stack. |
 | `preview-artifact` | No | `alchemy-worker` | CI artifact name containing the complete Worker bundle. |
 | `preview-entrypoint` | No | `index.js` | Entrypoint path relative to the artifact root; it must resolve to a regular file inside the artifact. |
+| `preview-compatibility-date` | No |  | Compatibility date to use for the Preview Worker; set it to the production Worker’s date. |
+| `preview-compatibility-flags` | No | `[]` | JSON array of compatibility flags to use for the Preview Worker. |
 | `preview-url-pattern` | No | `https://{stage}-{worker}.*.workers.dev` | URL glob for the Preview URL. It must contain `{worker}` and `{stage}`. First-class Preview URLs use stage-worker ordering. `*` matches one URL path segment. |
 | `ci-workflow` | No | `ci.yml` | CI workflow file used for exact-SHA gating. |
 | `production-branch` | No | `main` | Branch allowed to deploy production. |
