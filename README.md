@@ -56,7 +56,7 @@ The `CI` workflow must be named `CI`, run for `push` and `pull_request`, check o
 
 Production commands receive the stage in `STAGE`. PR Preview deploy and cleanup use the trusted action-owned stack and the `pr-<number>` stage; they never run consumer commands.
 
-Add an upload step after the credential-free Worker build in CI. Adjust `path` and `preview-entrypoint` to the output of the project's bundler:
+Add an upload step after the credential-free Worker build in CI. Adjust `path` and `preview-entrypoint` to the output of the project's bundler. A Worker with static assets can include both its runtime modules and asset directory in the same artifact:
 
 ```yaml
 - name: Upload Worker Preview bundle
@@ -67,7 +67,7 @@ Add an upload step after the credential-free Worker build in CI. Adjust `path` a
     if-no-files-found: error
 ```
 
-Upload every runtime module needed by the bundle. Do not upload Alchemy stack files or build scripts, and do not rely on executing a post-download build. Alchemy beta.79 reads the prebuilt files as bytes and uses `preview: { of: <production-worker> }`.
+Upload every runtime module and static asset needed by the bundle. For example, an artifact may contain `worker/index.js` and `site/` files. Set `preview-entrypoint: worker/index.js`, `preview-assets-directory: site`, and configure `preview-assets-config` as required by the production Worker. Do not upload Alchemy stack files or build scripts, and do not rely on executing a post-download build. Alchemy beta.79 reads the prebuilt files as bytes and uses `preview: { of: <production-worker> }`.
 
 Add these repository secrets:
 
@@ -89,6 +89,8 @@ Add these repository secrets:
 | `worker-config` | No |  | Optional JSON object of environment bindings for the trusted Preview stack. |
 | `preview-artifact` | No | `alchemy-worker` | CI artifact name containing the complete Worker bundle. |
 | `preview-entrypoint` | No | `index.js` | Entrypoint path relative to the artifact root; it must resolve to a regular file inside the artifact. |
+| `preview-assets-directory` | No |  | Optional static asset directory relative to the artifact root; it must resolve to a directory inside the artifact. |
+| `preview-assets-config` | No | `{}` | JSON configuration for static assets: `htmlHandling`, `notFoundHandling`, `runWorkerFirst`, `serveDirectly`, `headers`, and `redirects`. The directory is supplied separately by `preview-assets-directory`. |
 | `preview-compatibility-date` | No |  | Compatibility date to use for the Preview Worker; set it to the production Worker’s date. |
 | `preview-compatibility-flags` | No | `[]` | JSON array of compatibility flags to use for the Preview Worker. |
 | `preview-url-pattern` | No | `https://{stage}-{worker}.*.workers.dev` | URL glob for the Preview URL. It must contain `{worker}` and `{stage}`. First-class Preview URLs use stage-worker ordering. `*` matches one URL path segment. |
@@ -159,7 +161,7 @@ The reconcile finds this action's Preview records, resolves each pull request, a
 
 ## Security
 
-The PR artifact is untrusted input. The trusted action validates that the selected entrypoint remains a regular file inside the artifact, and Alchemy reads the bundle with `bundle: false` without evaluating it in the credentialed deployment process. Keep CI builds credential-free. The deployed Worker runs on Cloudflare, so configure its bindings deliberately. Worker Preview service bindings may still target production services; use a separate Alchemy stage when the whole infrastructure environment must be isolated.
+The PR artifact is untrusted input. The trusted action validates that the selected entrypoint and optional assets directory remain inside the artifact, and Alchemy reads the bundle with `bundle: false` without evaluating it in the credentialed deployment process. Keep CI builds credential-free. The deployed Worker runs on Cloudflare, so configure its bindings deliberately. Worker Preview service bindings may still target production services; use a separate Alchemy stage when the whole infrastructure environment must be isolated.
 
 ## Worker Preview semantics
 

@@ -6,10 +6,15 @@ import {
   state as cloudflareState,
 } from "alchemy/Cloudflare";
 import { Worker } from "alchemy/Cloudflare/Workers";
+import type { AssetsProps } from "alchemy/Cloudflare/Workers";
 import { gen as effectGen, promise as effectPromise } from "effect/Effect";
 import { z } from "zod";
 
-import { resolveWorkerPreviewEntrypoint } from "@/worker-preview-artifact.ts";
+import {
+  parseWorkerPreviewAssetsConfig,
+  resolveWorkerPreviewAssetsDirectory,
+  resolveWorkerPreviewEntrypoint,
+} from "@/worker-preview-artifact.ts";
 
 type JsonValue =
   | boolean
@@ -38,7 +43,6 @@ const workerEnvironmentSchema: z.ZodType<Record<string, JsonValue>> = z.record(
   z.string(),
   jsonValueSchema
 );
-
 const required = (name: string): string => {
   const value = Bun.env[name]?.trim();
   if (!value) {
@@ -58,6 +62,24 @@ const artifactEntrypoint = (): Promise<string> => {
     required("ALCHEMY_PREVIEW_ARTIFACT"),
     required("ALCHEMY_PREVIEW_ENTRYPOINT")
   );
+};
+
+const artifactAssets = async (): Promise<AssetsProps | undefined> => {
+  if (Bun.env.PHASE === "cleanup") {
+    return;
+  }
+  const relativeDirectory = Bun.env.ALCHEMY_PREVIEW_ASSETS_DIRECTORY?.trim();
+  if (!relativeDirectory) {
+    return;
+  }
+  const input = Bun.env.ALCHEMY_PREVIEW_ASSETS_CONFIG?.trim() || "{}";
+  return {
+    directory: await resolveWorkerPreviewAssetsDirectory(
+      required("ALCHEMY_PREVIEW_ARTIFACT"),
+      relativeDirectory
+    ),
+    ...parseWorkerPreviewAssetsConfig(input),
+  };
 };
 
 const parseWorkerEnvironment = (): Record<string, JsonValue> => {
@@ -106,6 +128,7 @@ const deploymentAnnotation =
 
 const workerPreviewStack = function* workerPreviewStack() {
   const preview = yield* Worker("WorkerPreview", {
+    assets: yield* effectPromise(artifactAssets),
     bundle: false,
     compatibility: previewCompatibility(),
     env: parseWorkerEnvironment(),

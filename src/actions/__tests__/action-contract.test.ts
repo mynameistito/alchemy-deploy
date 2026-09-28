@@ -188,6 +188,8 @@ describe("composite action contract", () => {
         required: false,
       },
       "preview-artifact": { default: "alchemy-worker", required: false },
+      "preview-assets-config": { default: "{}", required: false },
+      "preview-assets-directory": { default: "", required: false },
       "preview-compatibility-date": { default: "", required: false },
       "preview-compatibility-flags": { default: "[]", required: false },
       "preview-entrypoint": { default: "index.js", required: false },
@@ -255,6 +257,37 @@ describe("composite action contract", () => {
     expect(getCommandLines(steps)).not.toContain("pull_request_target");
   });
 
+  test("forwards static asset preview settings through the reusable workflow", async () => {
+    const workflow = record.parse(
+      parse(await readFile(".github/workflows/deploy.yml", "utf-8"))
+    );
+    const triggers = record.parse(workflow.on);
+    const workflowCall = record.parse(triggers.workflow_call);
+    const inputs = record.parse(workflowCall.inputs);
+    const jobs = record.parse(workflow.jobs);
+    const deploy = record.parse(jobs.deploy);
+    const steps = z.array(record).parse(deploy.steps);
+    const actionStep = stepNamed(steps, "Run Alchemy deployment policy");
+    const actionInputs = record.parse(actionStep.with);
+
+    expect(inputs["preview-assets-directory"]).toMatchObject({
+      default: "",
+      required: false,
+      type: "string",
+    });
+    expect(inputs["preview-assets-config"]).toMatchObject({
+      default: "{}",
+      required: false,
+      type: "string",
+    });
+    expect(actionInputs["preview-assets-directory"]).toBe(
+      githubExpression("inputs.preview-assets-directory")
+    );
+    expect(actionInputs["preview-assets-config"]).toBe(
+      githubExpression("inputs.preview-assets-config")
+    );
+  });
+
   test("declares report inputs and output sources structurally", async () => {
     const metadata = await reportAction();
     const inputs = inputsFor(metadata);
@@ -312,6 +345,15 @@ describe("composite action contract", () => {
     expect(previewStack).toContain("preview: {");
     expect(previewStack).toContain('of: required("WORKER_NAME")');
     expect(previewStack).toContain("compatibility: previewCompatibility()");
+    expect(previewStack).toContain(
+      "assets: yield* effectPromise(artifactAssets)"
+    );
+    expect(environment.ALCHEMY_PREVIEW_ASSETS_DIRECTORY).toContain(
+      "inputs.preview-assets-directory"
+    );
+    expect(environment.ALCHEMY_PREVIEW_ASSETS_CONFIG).toContain(
+      "inputs.preview-assets-config"
+    );
     expect(environment.ALCHEMY_PREVIEW_COMPATIBILITY_DATE).toContain(
       "inputs.preview-compatibility-date"
     );
