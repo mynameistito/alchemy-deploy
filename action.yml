@@ -33,6 +33,14 @@ inputs:
     description: Entrypoint path inside the Worker artifact, relative to the artifact root
     default: index.js
     required: false
+  preview-assets-directory:
+    description: Optional static assets directory inside the Worker artifact, relative to the artifact root
+    default: ""
+    required: false
+  preview-assets-config:
+    description: JSON configuration for the Worker static assets, excluding the artifact directory
+    default: "{}"
+    required: false
   preview-compatibility-date:
     description: Compatibility date for the preview Worker; set to the production Worker date
     default: ""
@@ -178,6 +186,8 @@ runs:
       env:
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
         ALCHEMY_PREVIEW_ARTIFACT: ${{ runner.temp }}/alchemy-preview
+        ALCHEMY_PREVIEW_ASSETS_DIRECTORY: ${{ inputs.preview-assets-directory }}
+        ALCHEMY_PREVIEW_ASSETS_CONFIG: ${{ inputs.preview-assets-config }}
         ALCHEMY_PREVIEW_ENTRYPOINT: ${{ inputs.preview-entrypoint }}
         ALCHEMY_PREVIEW_COMPATIBILITY_DATE: ${{ inputs.preview-compatibility-date }}
         ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS: ${{ inputs.preview-compatibility-flags }}

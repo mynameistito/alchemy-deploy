@@ -13,6 +13,8 @@ on:
       preview-artifact:
         { default: alchemy-worker, required: false, type: string }
       preview-entrypoint: { default: index.js, required: false, type: string }
+      preview-assets-directory: { default: "", required: false, type: string }
+      preview-assets-config: { default: "{}", required: false, type: string }
       preview-compatibility-date: { default: "", required: false, type: string }
       preview-compatibility-flags:
         { default: "[]", required: false, type: string }
@@ -75,6 +77,8 @@ jobs:
           worker-config: ${{ inputs.worker-config }}
           preview-artifact: ${{ inputs.preview-artifact }}
           preview-entrypoint: ${{ inputs.preview-entrypoint }}
+          preview-assets-directory: ${{ inputs.preview-assets-directory }}
+          preview-assets-config: ${{ inputs.preview-assets-config }}
           preview-compatibility-date: ${{ inputs.preview-compatibility-date }}
           preview-compatibility-flags: ${{ inputs.preview-compatibility-flags }}
           preview-url-pattern: ${{ inputs.preview-url-pattern }}
