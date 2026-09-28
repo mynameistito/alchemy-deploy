@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.0
+
+### Major Changes
+
+- 35199af: Deploy PR Worker Previews from credential-free CI artifacts using Alchemy 2.0.0-beta.79 and first-class `preview.of` resources. PR-controlled build output is no longer executed by the privileged deployment job. Consumers must upload a complete Worker bundle from CI and configure its artifact name and entrypoint.
+
+### Patch Changes
+
+- 654ea3a: Fix lint findings and update development dependencies.
+
 ## 2.4.0
 
 ### Minor Changes
