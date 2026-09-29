@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.1
+
+### Patch Changes
+
+- 41fa5b0: Align the bundled Alchemy CLI with the Effect CLI and Bun platform APIs it imports at runtime.
+- 9dfbf0f: Run the Alchemy CLI smoke test from an isolated temporary directory.
+
 ## 3.1.0
 
 ### Minor Changes
