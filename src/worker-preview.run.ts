@@ -2,6 +2,11 @@ import path from "node:path";
 
 import { Stack } from "alchemy";
 import {
+  parseWorkerPreviewAssetsConfig,
+  resolveWorkerPreviewAssetsDirectory,
+  resolveWorkerPreviewEntrypoint,
+} from "alchemy-deploy/worker-preview-artifact";
+import {
   providers as cloudflareProviders,
   state as cloudflareState,
 } from "alchemy/Cloudflare";
@@ -9,12 +14,6 @@ import { Worker } from "alchemy/Cloudflare/Workers";
 import type { AssetsProps } from "alchemy/Cloudflare/Workers";
 import { gen as effectGen, promise as effectPromise } from "effect/Effect";
 import { z } from "zod";
-
-import {
-  parseWorkerPreviewAssetsConfig,
-  resolveWorkerPreviewAssetsDirectory,
-  resolveWorkerPreviewEntrypoint,
-} from "@/worker-preview-artifact.ts";
 
 type JsonValue =
   | boolean

@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { parse } from "yaml";
 import { z } from "zod";
@@ -41,6 +42,30 @@ const runAlchemyCliHelp = async () => {
   }
 };
 
+const previewStackImport = Bun.spawnSync(
+  [
+    "bun",
+    "-e",
+    [
+      'Bun.env.REPOSITORY_ID = "1";',
+      'Bun.env.WORKER_NAME = "cf-unduck";',
+      'Bun.env.STAGE = "pr-1";',
+      'Bun.env.DEPLOYMENT_SHA = "0000000000000000000000000000000000000000";',
+      `await import(${JSON.stringify(pathToFileURL(path.resolve("src/worker-preview.run.ts")).href)});`,
+    ].join(" "),
+  ],
+  {
+    env: {
+      ...Bun.env,
+      CLOUDFLARE_ACCOUNT_ID: "",
+      CLOUDFLARE_API_TOKEN: "",
+      GITHUB_TOKEN: "",
+    },
+    stderr: "pipe",
+    stdout: "pipe",
+  }
+);
+
 const failures: string[] = [];
 const packageText = await Bun.file("package.json").text();
 const packageJson = packageJsonSchema.parse(JSON.parse(packageText));
@@ -51,6 +76,11 @@ const alchemyCli = await runAlchemyCliHelp();
 if (alchemyCli.exitCode !== 0) {
   failures.push(
     `Alchemy CLI could not start: ${alchemyCli.stderr.toString("utf-8")}`
+  );
+}
+if (previewStackImport.exitCode !== 0) {
+  failures.push(
+    `Trusted Worker Preview stack could not load: ${previewStackImport.stderr.toString("utf-8")}`
   );
 }
 

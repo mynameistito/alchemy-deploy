@@ -10,7 +10,8 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/domain/deployment.ts"
+    ".": "./src/domain/deployment.ts",
+    "./worker-preview-artifact": "./src/worker-preview-artifact.ts"
   },
   "scripts": {
     "check": "ultracite check",
@@ -25,6 +26,7 @@
   },
   "dependencies": {
     "@effect/platform-bun": "4.0.0-rc.117",
+    "@effect/platform-node": "4.0.0-rc.117",
     "@effect/platform-node-shared": "4.0.0-rc.117",
     "alchemy": "2.0.0-beta.79",
     "effect": "4.0.0-rc.117",
