@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { parse } from "yaml";
@@ -12,15 +13,40 @@ const packageJsonSchema = z.object({
   packageManager: z.string().optional(),
 });
 
+const runAlchemyCliHelp = async () => {
+  const workingDirectory = await mkdtemp(
+    path.join(tmpdir(), "alchemy-runtime-validation-")
+  );
+  try {
+    return Bun.spawnSync(
+      [
+        "bun",
+        path.resolve("node_modules/alchemy/bin/cli.js"),
+        "destroy",
+        "--help",
+      ],
+      {
+        cwd: workingDirectory,
+        env: {
+          ...Bun.env,
+          ALCHEMY_HOME: path.join(workingDirectory, "home"),
+          ALCHEMY_TELEMETRY_DISABLED: "1",
+        },
+        stderr: "pipe",
+        stdout: "pipe",
+      }
+    );
+  } finally {
+    await rm(workingDirectory, { force: true, recursive: true });
+  }
+};
+
 const failures: string[] = [];
 const packageText = await Bun.file("package.json").text();
 const packageJson = packageJsonSchema.parse(JSON.parse(packageText));
 const lockFile = Bun.file("bun.lock");
 const lockText = (await lockFile.exists()) ? await lockFile.text() : "";
-const alchemyCli = Bun.spawnSync(
-  ["bun", "./node_modules/alchemy/bin/cli.js", "destroy", "--help"],
-  { stderr: "pipe", stdout: "pipe" }
-);
+const alchemyCli = await runAlchemyCliHelp();
 
 if (alchemyCli.exitCode !== 0) {
   failures.push(
