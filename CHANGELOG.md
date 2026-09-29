@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.2
+
+### Patch Changes
+
+- d4981ca: Expose the trusted Worker Preview artifact helper through package exports and install its compatible Node platform runtime.
+
 ## 3.1.1
 
 ### Patch Changes
