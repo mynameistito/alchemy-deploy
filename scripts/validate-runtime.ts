@@ -17,6 +17,16 @@ const packageText = await Bun.file("package.json").text();
 const packageJson = packageJsonSchema.parse(JSON.parse(packageText));
 const lockFile = Bun.file("bun.lock");
 const lockText = (await lockFile.exists()) ? await lockFile.text() : "";
+const alchemyCli = Bun.spawnSync(
+  ["bun", "./node_modules/alchemy/bin/cli.js", "destroy", "--help"],
+  { stderr: "pipe", stdout: "pipe" }
+);
+
+if (alchemyCli.exitCode !== 0) {
+  failures.push(
+    `Alchemy CLI could not start: ${alchemyCli.stderr.toString("utf-8")}`
+  );
+}
 
 if (packageJson.packageManager !== "bun@1.4.2") {
   failures.push("package.json: packageManager must pin bun@1.4.2");

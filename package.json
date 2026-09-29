@@ -24,8 +24,10 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
+    "@effect/platform-bun": "4.0.0-rc.117",
+    "@effect/platform-node-shared": "4.0.0-rc.117",
     "alchemy": "2.0.0-beta.79",
-    "effect": "4.0.0-rc.118",
+    "effect": "4.0.0-rc.117",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -40,6 +42,9 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "ultracite": "7.12.0",
     "yaml": "2.9.1"
+  },
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.0-rc.117"
   },
   "packageManager": "bun@1.4.2"
 }
