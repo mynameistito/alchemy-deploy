@@ -342,6 +342,9 @@ describe("composite action contract", () => {
     expect(orchestration).toContain('context.stage._tag === "preview"');
     expect(orchestration).toContain("src/worker-preview.run.ts");
     expect(previewStack).toContain("bundle: false");
+    expect(previewStack).toContain(
+      'from "alchemy-deploy/worker-preview-artifact"'
+    );
     expect(previewStack).toContain("preview: {");
     expect(previewStack).toContain('of: required("WORKER_NAME")');
     expect(previewStack).toContain("compatibility: previewCompatibility()");
