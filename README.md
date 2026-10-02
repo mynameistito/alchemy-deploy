@@ -165,7 +165,7 @@ The PR artifact is untrusted input. The trusted action validates that the select
 
 ## Worker Preview semantics
 
-This integration uses Alchemy `2.0.0-beta.79`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). That release models branch/PR Previews as first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
+This integration uses Alchemy `2.0.0-beta.80`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). That release models branch/PR Previews as first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
 
 Do not treat every Alchemy `version` as a PR Preview:
 
