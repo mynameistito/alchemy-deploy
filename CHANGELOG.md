@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.3
+
+### Patch Changes
+
+- a205af0: Update the trusted Alchemy runtime to beta.80 and align its Effect dependencies with stable Effect 4.
+
 ## 3.1.2
 
 ### Patch Changes
