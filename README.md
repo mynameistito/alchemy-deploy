@@ -38,7 +38,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Run Alchemy deployment
-        uses: mynameistito/alchemy-deploy@<full-release-sha> # v3.1.0
+        uses: mynameistito/alchemy-deploy@<full-release-sha> # v3.1.4
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -135,7 +135,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Reconcile preview deployments
-        uses: mynameistito/alchemy-deploy@<full-release-sha>
+        uses: mynameistito/alchemy-deploy@<full-release-sha> # v3.1.4
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -184,7 +184,7 @@ The action passes configured commands through environment variables instead of i
 Consumers should pin the action to the full 40-character commit SHA of a published release:
 
 ```yaml
-uses: mynameistito/alchemy-deploy@<full-release-sha> # v2.2.0
+uses: mynameistito/alchemy-deploy@<full-release-sha> # v3.1.4
 ```
 
 To upgrade, review the [release notes](https://github.com/mynameistito/alchemy-deploy/releases), resolve the release tag to its full commit SHA, replace the pin, and run the consumer's complete checks. Do not pin to a branch, mutable alias, abbreviated SHA, or unmerged commit.
