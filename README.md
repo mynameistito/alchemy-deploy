@@ -54,13 +54,15 @@ jobs:
 
 The `CI` workflow must be named `CI`, run for `push` and `pull_request`, check out the pull request head SHA, and upload the built Worker bundle as an artifact before succeeding. Keep the triggers, permissions, and environment-based concurrency from the template.
 
+The Node 24 artifact actions require Actions runner v2.327.1 or newer. Current GitHub-hosted runners satisfy this; update older self-hosted runners before adopting the action.
+
 Production commands receive the stage in `STAGE`. PR Preview deploy and cleanup use the trusted action-owned stack and the `pr-<number>` stage; they never run consumer commands.
 
 Add an upload step after the credential-free Worker build in CI. Adjust `path` and `preview-entrypoint` to the output of the project's bundler. A Worker with static assets can include both its runtime modules and asset directory in the same artifact:
 
 ```yaml
 - name: Upload Worker Preview bundle
-  uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+  uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   with:
     name: alchemy-worker
     path: path/to/built-worker/
