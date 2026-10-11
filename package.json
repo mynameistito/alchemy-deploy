@@ -25,7 +25,7 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
-    "@effect/platform-bun": "4.0.0",
+    "@effect/platform-bun": "4.0.2",
     "@effect/platform-node": "4.0.0",
     "alchemy": "2.0.0-beta.80",
     "effect": "4.0.0",
