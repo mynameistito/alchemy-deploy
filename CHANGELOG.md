@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.5
+
+### Patch Changes
+
+- b1db061: Update Alchemy and runtime dependencies.
+
 ## 3.1.4
 
 ### Patch Changes
