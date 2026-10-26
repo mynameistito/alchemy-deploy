@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.8
+
+### Patch Changes
+
+- 90e6d8e: Allow protected callers to deploy explicitly approved fork preview commits and pass independently resolved pull request numbers.
+
 ## 3.1.7
 
 ### Patch Changes
