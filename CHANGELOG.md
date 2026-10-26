@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.7
+
+### Patch Changes
+
+- c55d26d: Update the pinned artifact download action used for isolated Worker Preview artifacts.
+
 ## 3.1.6
 
 ### Patch Changes
