@@ -21,12 +21,15 @@ export const runConsumerAttemptWithRetry = async (
   sleep: (milliseconds: number) => Promise<void> = Bun.sleep
 ): Promise<"success" | "failure"> => {
   const first = await runAttempt();
+
   if (first.exitCode === 0) {
     return "success";
   }
+
   if (!retryEnabled) {
     return "failure";
   }
+
   if (!isRetryableStateStorePlanningFailure(first.output)) {
     return "failure";
   }
@@ -37,5 +40,6 @@ export const runConsumerAttemptWithRetry = async (
   await sleep(RETRY_DELAY_MS);
 
   const second = await runAttempt();
+
   return second.exitCode === 0 ? "success" : "failure";
 };

@@ -8,6 +8,7 @@ import {
 import type { PolicyInput } from "@/domain/deployment-policy.ts";
 
 const sha = "a".repeat(40);
+
 const pr = (
   overrides: Partial<NonNullable<PolicyInput["pullRequest"]>> = {}
 ) => ({
@@ -95,6 +96,7 @@ describe("deployment policy", () => {
       productionBranch: "main",
       sha,
     };
+
     expect(deploymentPolicy(input)).toEqual({
       kind: "deploy",
       sha,

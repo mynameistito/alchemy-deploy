@@ -15,12 +15,15 @@ afterEach(() => {
 describe("GitHub API adapter", () => {
   test("follows Link pagination for comments", async () => {
     const serverUrl = { value: "" };
+
     const server = Bun.serve({
       fetch(request): Response {
         const url = new URL(request.url);
+
         if (url.searchParams.get("page") === "2") {
           return Response.json([{ body: "second", id: 2 }]);
         }
+
         return Response.json([{ body: "first", id: 1 }], {
           headers: {
             Link: `<${serverUrl.value}repos/owner/repo/issues/42/comments?per_page=100&page=2>; rel="next"`,
@@ -29,14 +32,17 @@ describe("GitHub API adapter", () => {
       },
       port: 0,
     });
+
     serverUrl.value = server.url.toString();
     servers.push(server);
+
     const github = createGitHubApi({
       apiUrl: server.url.toString(),
       owner: "owner",
       repository: "repo",
       token: "secret",
     });
+
     expect(await github.listComments(42)).toEqual({
       _tag: "ok",
       value: [
@@ -51,14 +57,18 @@ describe("GitHub API adapter", () => {
       fetch: () => Response.json({ message: "rate limited" }, { status: 403 }),
       port: 0,
     });
+
     servers.push(server);
+
     const result = await createGitHubApi({
       apiUrl: server.url.toString(),
       owner: "owner",
       repository: "repo",
       token: "do-not-print",
     }).listDeployments("pr-2");
+
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.status).toBe(403);
       expect(result.error.message).toContain("rate limited");
@@ -71,14 +81,18 @@ describe("GitHub API adapter", () => {
       fetch: () => Response.json([{ id: 0 }]),
       port: 0,
     });
+
     servers.push(server);
+
     const result = await createGitHubApi({
       apiUrl: server.url.toString(),
       owner: "owner",
       repository: "repo",
       token: "secret",
     }).listDeployments("pr-2");
+
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.message).toContain("expected shape");
     }
@@ -89,14 +103,18 @@ describe("GitHub API adapter", () => {
       fetch: () => Response.json([{ id: Number.MAX_SAFE_INTEGER + 1 }]),
       port: 0,
     });
+
     servers.push(server);
+
     const result = await createGitHubApi({
       apiUrl: server.url.toString(),
       owner: "owner",
       repository: "repo",
       token: "secret",
     }).listDeployments("pr-2");
+
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.message).toContain("expected shape");
     }
@@ -106,9 +124,11 @@ describe("GitHub API adapter", () => {
     const server = Bun.serve({
       fetch(request): Response {
         const url = new URL(request.url);
+
         if (url.pathname.endsWith("/statuses")) {
           return Response.json([{ state: "success" }]);
         }
+
         return Response.json([
           { id: 1, payload: { worker: "worker" }, sha: "a".repeat(40) },
           { id: 2, payload: {}, sha: "b".repeat(40) },
@@ -116,13 +136,16 @@ describe("GitHub API adapter", () => {
       },
       port: 0,
     });
+
     servers.push(server);
+
     const result = await createGitHubApi({
       apiUrl: server.url.toString(),
       owner: "owner",
       repository: "repo",
       token: "secret",
     }).listDeployments("prod");
+
     expect(result).toEqual({
       _tag: "ok",
       value: [
@@ -136,7 +159,9 @@ describe("GitHub API adapter", () => {
       fetch: () => new Response("not-json", { status: 201 }),
       port: 0,
     });
+
     servers.push(server);
+
     const result = await createGitHubApi({
       apiUrl: server.url.toString(),
       owner: "owner",
@@ -148,7 +173,9 @@ describe("GitHub API adapter", () => {
       ref: "a".repeat(40),
       worker: "worker",
     });
+
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.operation).toBe("create deployment");
       expect(result.error.message).toContain("invalid JSON");
@@ -157,15 +184,18 @@ describe("GitHub API adapter", () => {
 
   test("persists the worker identity in deployment metadata", async () => {
     let requestBody: { readonly payload: unknown } | undefined;
+
     const server = Bun.serve({
       async fetch(request) {
         requestBody = z
           .object({ payload: z.unknown() })
           .parse(await request.json());
+
         return Response.json({ id: 7 }, { status: 201 });
       },
       port: 0,
     });
+
     servers.push(server);
 
     const result = await createGitHubApi({
@@ -207,6 +237,7 @@ describe("GitHub API adapter", () => {
         ]),
       port: 0,
     });
+
     servers.push(server);
 
     const result = await createGitHubApi({
@@ -235,14 +266,18 @@ describe("GitHub API adapter", () => {
         }),
       port: 0,
     });
+
     servers.push(server);
+
     const result = await createGitHubApi({
       apiUrl: server.url.toString(),
       owner: "owner",
       repository: "repo",
       token: "secret",
     }).listComments(42);
+
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.message).toContain("refusing cross-origin next link");
       expect(result.error.message).toContain("https://attacker.example");

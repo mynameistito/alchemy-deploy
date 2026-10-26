@@ -4,7 +4,17 @@ import { err, ok } from "@/shared/result.ts";
 import type { Result } from "@/shared/result.ts";
 
 const URL_CANDIDATE = /https:\/\/[^\s"'<>]+/gu;
-const TRAILING_PUNCTUATION = /[),.;]+$/gu;
+const TRAILING_PUNCTUATION = /[),.;]$/u;
+
+const stripTrailingPunctuation = (candidate: string): string => {
+  let result = candidate;
+
+  while (TRAILING_PUNCTUATION.test(result)) {
+    result = result.slice(0, -1);
+  }
+
+  return result;
+};
 
 /** URL rules supplied by a consuming repository. */
 export interface DeploymentUrlConfig {
@@ -35,10 +45,12 @@ const patternFor = (
       )
     );
   }
+
   const escaped = escapeRegex(pattern)
     .replaceAll("\\{worker\\}", escapeRegex(worker))
     .replaceAll("\\{stage\\}", escapeRegex(stage.value))
     .replaceAll("\\*", "[^/]*");
+
   return ok(new RegExp(`^${escaped}$`, "u"));
 };
 
@@ -48,9 +60,11 @@ const parseHttpsOrigin = (
 ): Result<string, DeploymentUrlError> => {
   try {
     const url = new URL(input);
+
     if (url.protocol !== "https:") {
       return err(new DeploymentUrlError(`${field} must use HTTPS`));
     }
+
     return ok(url.origin);
   } catch (error) {
     return err(
@@ -73,16 +87,20 @@ export const resolveDeploymentUrl = (
   }
 
   const matcher = patternFor(config.previewUrlPattern, worker, stage);
+
   if (matcher._tag === "err") {
     return matcher;
   }
+
   for (const rawCandidate of log.match(URL_CANDIDATE) ?? []) {
-    const candidate = rawCandidate.replace(TRAILING_PUNCTUATION, "");
+    const candidate = stripTrailingPunctuation(rawCandidate);
     const parsed = parseHttpsOrigin(candidate, "Alchemy output URL");
+
     if (parsed._tag === "ok" && matcher.value.test(parsed.value)) {
       return parsed;
     }
   }
+
   return err(
     new DeploymentUrlError(
       `Alchemy output did not contain a URL matching ${config.previewUrlPattern} for ${physicalWorkerName(worker, stage)}`
@@ -99,13 +117,16 @@ export const cloudflareLogsUrl = (
   if (!accountId.trim()) {
     return err(new DeploymentUrlError("cloudflare-account-id is required"));
   }
+
   // First-class Previews belong to the parent Worker, not a separate script.
   const service = encodeURIComponent(worker);
   const account = encodeURIComponent(accountId);
+
   const environment =
     stage._tag === "production"
       ? "production"
       : encodeURIComponent(stage.value);
+
   return ok(
     `https://dash.cloudflare.com/?to=/${account}/workers/services/view/${service}/${environment}/logs`
   );

@@ -92,15 +92,18 @@ const create = async (
     ref: context.commitSha,
     worker: context.worker,
   });
+
   if (deployment._tag === "err") {
     return apiFailure(deployment.error);
   }
+
   const status = await github.createDeploymentStatus({
     deploymentId: deployment.value,
     description: "Deploying the Alchemy stack",
     logUrl: context.runUrl,
     state: "in_progress",
   });
+
   return status._tag === "err"
     ? err(
         new DeploymentReportError(
@@ -125,11 +128,13 @@ const complete = async (
     logUrl: command.logsUrl,
     state: command.outcome,
   };
+
   const status = await github.createDeploymentStatus(
     command.deploymentUrl
       ? { ...statusRequest, environmentUrl: command.deploymentUrl }
       : statusRequest
   );
+
   return status._tag === "err" ? apiFailure(status.error) : ok({});
 };
 
@@ -138,12 +143,15 @@ const comment = async (
   command: Extract<DeploymentReportCommand, { readonly _tag: "comment" }>
 ): Promise<Result<DeploymentReportOutput, DeploymentReportError>> => {
   const comments = await github.listComments(command.issueNumber);
+
   if (comments._tag === "err") {
     return apiFailure(comments.error);
   }
+
   const existing = comments.value.find((item) =>
     hasDeploymentCommentMarker(item.body, command.context.stage)
   );
+
   const commentInput: DeploymentCommentInput = {
     commitSha: command.context.commitSha,
     logsUrl: command.logsUrl,
@@ -155,14 +163,17 @@ const comment = async (
     updatedAt: command.updatedAt,
     worker: command.context.worker,
   };
+
   const body = renderDeploymentComment(
     command.deploymentUrl
       ? { ...commentInput, deploymentUrl: command.deploymentUrl }
       : commentInput
   );
+
   const result = existing
     ? await github.updateComment(existing.id, body)
     : await github.createComment(command.issueNumber, body);
+
   return result._tag === "err" ? apiFailure(result.error) : ok({});
 };
 
@@ -177,13 +188,17 @@ const cleanup = async (
       )
     );
   }
+
   const deployments = await github.listDeployments(context.stage.value);
+
   if (deployments._tag === "err") {
     return apiFailure(deployments.error);
   }
+
   const workerDeployments = deployments.value.filter(
     (deployment) => deployment.worker === context.worker
   );
+
   for (const deployment of workerDeployments) {
     // oxlint-disable-next-line no-await-in-loop -- Each record must be inactive before that same record is deleted.
     const inactive = await github.createDeploymentStatus({
@@ -191,15 +206,19 @@ const cleanup = async (
       description: "Pull request closed",
       state: "inactive",
     });
+
     if (inactive._tag === "err") {
       return apiFailure(inactive.error);
     }
+
     // oxlint-disable-next-line no-await-in-loop -- Cleanup stops on the first failure to preserve remaining evidence.
     const deleted = await github.deleteDeployment(deployment.id);
+
     if (deleted._tag === "err") {
       return apiFailure(deleted.error);
     }
   }
+
   return ok({ deletedDeployments: workerDeployments.length });
 };
 
@@ -212,15 +231,19 @@ export const runDeploymentReport = (
     case "create": {
       return create(github, command.context);
     }
+
     case "complete": {
       return complete(github, command);
     }
+
     case "comment": {
       return comment(github, command);
     }
+
     case "cleanup": {
       return cleanup(github, command.context);
     }
+
     default: {
       throw new Error("Unsupported deployment report command");
     }

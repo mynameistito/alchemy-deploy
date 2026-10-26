@@ -25,13 +25,17 @@ const resolveLinks = async (
   input: DeploymentLinkInput
 ): Promise<Result<{ logsUrl: string; deploymentUrl?: string }, Error>> => {
   const logs = cloudflareLogsUrl(input.accountId, input.worker, input.stage);
+
   if (logs._tag === "err") {
     return logs;
   }
+
   if (input.outcome !== "success") {
     return ok({ logsUrl: logs.value });
   }
+
   let log: string;
+
   try {
     log = await readFile(input.logPath, "utf-8");
   } catch (error) {
@@ -41,12 +45,14 @@ const resolveLinks = async (
       )
     );
   }
+
   const deployment = resolveDeploymentUrl(
     log,
     input.stage,
     input.worker,
     input.urlConfig
   );
+
   return deployment._tag === "err"
     ? deployment
     : ok({ deploymentUrl: deployment.value, logsUrl: logs.value });
@@ -54,41 +60,54 @@ const resolveLinks = async (
 
 const trustedPreviewCommand = (operation: "deploy" | "destroy"): string => {
   const actionPath = Bun.env.ALCHEMY_ACTION_PATH;
+
   if (!actionPath) {
     throw new Error("ALCHEMY_ACTION_PATH is required for Worker Previews");
   }
+
   return `bun "$ALCHEMY_ACTION_PATH/node_modules/alchemy/bin/cli.js" ${operation} --config "$ALCHEMY_ACTION_PATH/src/worker-preview.run.ts" --stage "$STAGE" --yes`;
 };
 
 const main = async (): Promise<number> => {
   const phase = required("PHASE");
   const token = required("GITHUB_TOKEN");
+
   if (phase._tag === "err") {
     console.error(`::error::${phase.error.message}`);
+
     return 1;
   }
+
   if (token._tag === "err") {
     console.error(`::error::${token.error.message}`);
+
     return 1;
   }
+
   const mode = phase.value === "cleanup" ? "cleanup" : "create";
   const parsed = parseReportEnvironment({ ...Bun.env, MODE: mode }, new Date());
+
   if (parsed._tag === "err") {
     console.error(
       `::error::Invalid orchestration input: ${parsed.error.message}`
     );
+
     return 1;
   }
+
   const { context } = parsed.value.command;
+
   const github = createGitHubApi({
     apiUrl: parsed.value.apiUrl,
     owner: context.owner,
     repository: context.repository,
     token: parsed.value.token,
   });
+
   const deployCommand = Bun.env.DEPLOY_COMMAND ?? "";
   const adoptFlag = Bun.env.USE_ADOPT === "true" ? " --adopt" : "";
   let commandText: string;
+
   if (context.stage._tag === "preview") {
     commandText = trustedPreviewCommand(
       mode === "create" ? "deploy" : "destroy"
@@ -98,6 +117,7 @@ const main = async (): Promise<number> => {
   } else {
     commandText = Bun.env.DESTROY_COMMAND ?? "";
   }
+
   const command: ConsumerCommand = {
     command: commandText,
     environment: {
@@ -106,6 +126,7 @@ const main = async (): Promise<number> => {
     logPath:
       Bun.env.LOG_PATH ?? `${Bun.env.RUNNER_TEMP ?? "."}/alchemy-${mode}.log`,
   };
+
   const ports = {
     consumer: runConsumerCommand,
     diagnostic,
@@ -114,6 +135,7 @@ const main = async (): Promise<number> => {
     report: (reportCommand: Parameters<typeof runDeploymentReport>[1]) =>
       runDeploymentReport(github, reportCommand),
   };
+
   const links: DeploymentLinkInput = {
     accountId: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     logPath: command.logPath,
@@ -125,10 +147,12 @@ const main = async (): Promise<number> => {
     },
     worker: context.worker,
   };
+
   const plan =
     mode === "cleanup"
       ? { _tag: "cleanup" as const, consumer: command, context }
       : undefined;
+
   const deploymentPlan =
     context.stage._tag === "preview"
       ? {
@@ -139,14 +163,18 @@ const main = async (): Promise<number> => {
           links,
         }
       : { _tag: "deploy" as const, consumer: command, context, links };
+
   const result = await runDeploymentOrchestration(
     plan ?? deploymentPlan,
     ports
   );
+
   if (result._tag === "err") {
     console.error(`::error::${result.error.message}`);
+
     return 1;
   }
+
   return 0;
 };
 

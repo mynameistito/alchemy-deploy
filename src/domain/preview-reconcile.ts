@@ -35,6 +35,7 @@ export const previewCandidates = (
 ): readonly PreviewCandidate[] => {
   const candidates: PreviewCandidate[] = [];
   const seen = new Set<string>();
+
   for (const deployment of deployments) {
     if (
       !PREVIEW_ENVIRONMENT.test(deployment.environment) ||
@@ -43,6 +44,7 @@ export const previewCandidates = (
     ) {
       continue;
     }
+
     seen.add(deployment.environment);
     candidates.push({
       pullRequest: Number(deployment.environment.slice(PREVIEW_PREFIX.length)),
@@ -51,5 +53,6 @@ export const previewCandidates = (
       worker: deployment.worker,
     });
   }
+
   return candidates;
 };

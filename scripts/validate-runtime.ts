@@ -9,6 +9,7 @@ import { z } from "zod";
 const record = z.record(z.string(), z.json());
 const actionPaths = ["action.yml", "actions/deployment-report/action.yml"];
 const runPath = /\$GITHUB_ACTION_PATH\/(?:\.\.\/)*[^"'\s$]+/gu;
+
 const packageJsonSchema = z.object({
   dependencies: z.record(z.string(), z.string()).optional(),
   packageManager: z.string().optional(),
@@ -18,6 +19,7 @@ const runAlchemyCliHelp = async () => {
   const workingDirectory = await mkdtemp(
     path.join(tmpdir(), "alchemy-runtime-validation-")
   );
+
   try {
     return Bun.spawnSync(
       [
@@ -78,6 +80,7 @@ if (alchemyCli.exitCode !== 0) {
     `Alchemy CLI could not start: ${alchemyCli.stderr.toString("utf-8")}`
   );
 }
+
 if (previewStackImport.exitCode !== 0) {
   failures.push(
     `Trusted Worker Preview stack could not load: ${previewStackImport.stderr.toString("utf-8")}`
@@ -87,6 +90,7 @@ if (previewStackImport.exitCode !== 0) {
 if (packageJson.packageManager !== "bun@1.4.2") {
   failures.push("package.json: packageManager must pin bun@1.4.2");
 }
+
 if (!lockText) {
   failures.push("bun.lock: required by action dependency installation");
 }
@@ -103,17 +107,22 @@ const metadataFiles = await Promise.all(
     metadata: record.parse(parse(await readFile(actionPath, "utf-8"))),
   }))
 );
+
 const runtimeFiles: readonly { actionPath: string; resolved: string }[] =
   metadataFiles.flatMap(({ actionPath, metadata }) => {
     const runs = record.parse(metadata.runs);
     const steps = z.array(record).parse(runs.steps);
+
     return steps.flatMap((step) => {
       const run = z.string().safeParse(step.run);
+
       if (!run.success) {
         return [];
       }
+
       return [...run.data.matchAll(runPath)].map((reference) => {
         const relativePath = reference[0].slice("$GITHUB_ACTION_PATH/".length);
+
         return {
           actionPath,
           resolved: path.normalize(
@@ -123,12 +132,14 @@ const runtimeFiles: readonly { actionPath: string; resolved: string }[] =
       });
     });
   });
+
 const runtimeFileResults = await Promise.all(
   runtimeFiles.map(async (runtimeFile) => ({
     ...runtimeFile,
     exists: await Bun.file(runtimeFile.resolved).exists(),
   }))
 );
+
 for (const runtimeFile of runtimeFileResults) {
   if (!runtimeFile.exists) {
     failures.push(
@@ -141,6 +152,7 @@ if (failures.length > 0) {
   for (const failure of failures) {
     console.error(failure);
   }
+
   process.exitCode = 1;
 } else {
   console.info(`Validated runtime paths for ${actionPaths.length} actions.`);

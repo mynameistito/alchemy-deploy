@@ -8,6 +8,7 @@ import type { GitHubPolicyPort } from "@/github/github-api.ts";
 import { ok } from "@/shared/result.ts";
 
 const sha = "a".repeat(40);
+
 const environment = (overrides: Record<string, string> = {}) => ({
   CI_WORKFLOW: "ci.yml",
   DEPLOYMENT_SHA: sha,
@@ -54,6 +55,7 @@ const github = (
 const outputs = (input: Record<string, string>, port = github()) =>
   runDeploymentPolicy(environment(), port, (name, value) => {
     input[name] = value;
+
     return Promise.resolve();
   });
 
@@ -67,7 +69,9 @@ describe("deployment policy action boundary", () => {
       environment({ STAGE: "pr-42" }),
       github()
     );
+
     expect(result).toEqual({ _tag: "ok", value: true });
+
     const stale = await recheckDeploymentPolicy(
       environment({ STAGE: "pr-42" }),
       github({
@@ -83,6 +87,7 @@ describe("deployment policy action boundary", () => {
           ),
       })
     );
+
     expect(stale._tag).toBe("err");
   });
 
@@ -95,11 +100,14 @@ describe("deployment policy action boundary", () => {
       }),
       github()
     );
+
     expect(result).toEqual({ _tag: "ok", value: true });
+
     const wrongBranch = await recheckDeploymentPolicy(
       environment({ STAGE: "prod", WORKFLOW_RUN_BRANCH: "release" }),
       github()
     );
+
     expect(wrongBranch._tag).toBe("err");
   });
 
@@ -126,12 +134,15 @@ describe("deployment policy action boundary", () => {
       github(),
       () => Promise.resolve()
     );
+
     expect(malformed._tag).toBe("err");
+
     const mismatch = await runDeploymentPolicy(
       environment(),
       github({ getWorkflowId: () => Promise.resolve(ok(13)) }),
       () => Promise.resolve()
     );
+
     expect(mismatch).toEqual({
       _tag: "ok",
       value: { kind: "noop", reason: "configured workflow mismatch" },
@@ -154,7 +165,9 @@ describe("deployment policy action boundary", () => {
           ),
       })
     );
+
     expect(decisionKind(stale)).toBe("noop");
+
     const fork = await outputs(
       {},
       github({
@@ -170,7 +183,9 @@ describe("deployment policy action boundary", () => {
           ),
       })
     );
+
     expect(decisionKind(fork)).toBe("noop");
+
     const duplicate = await outputs(
       {},
       github({
@@ -180,7 +195,9 @@ describe("deployment policy action boundary", () => {
           ),
       })
     );
+
     expect(decisionKind(duplicate)).toBe("noop");
+
     const independentWorker = await outputs(
       {},
       github({
@@ -190,6 +207,7 @@ describe("deployment policy action boundary", () => {
           ),
       })
     );
+
     expect(decisionKind(independentWorker)).toBe("deploy");
   });
 
@@ -199,7 +217,9 @@ describe("deployment policy action boundary", () => {
       github({ getBranchSha: () => Promise.resolve(ok("b".repeat(40))) }),
       () => Promise.resolve()
     );
+
     expect(decisionKind(staleProduction)).toBe("noop");
+
     const cleanup = await runDeploymentPolicy(
       {
         EVENT_ACTION: "closed",
@@ -211,10 +231,12 @@ describe("deployment policy action boundary", () => {
       github(),
       () => Promise.resolve()
     );
+
     expect(cleanup).toEqual({
       _tag: "ok",
       value: { kind: "cleanup", stage: "pr-42" },
     });
+
     const targetCleanup = await runDeploymentPolicy(
       {
         EVENT_ACTION: "closed",
@@ -226,7 +248,9 @@ describe("deployment policy action boundary", () => {
       github(),
       () => Promise.resolve()
     );
+
     expect(targetCleanup).toEqual(cleanup);
+
     const forkCleanup = await runDeploymentPolicy(
       {
         EVENT_ACTION: "closed",
@@ -238,7 +262,9 @@ describe("deployment policy action boundary", () => {
       github(),
       () => Promise.resolve()
     );
+
     expect(forkCleanup).toEqual(cleanup);
+
     const invalidCleanup = await runDeploymentPolicy(
       {
         EVENT_ACTION: "closed",
@@ -250,6 +276,7 @@ describe("deployment policy action boundary", () => {
       github(),
       () => Promise.resolve()
     );
+
     expect(decisionKind(invalidCleanup)).toBe("noop");
   });
 });

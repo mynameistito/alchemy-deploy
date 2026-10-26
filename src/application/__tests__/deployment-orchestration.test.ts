@@ -23,9 +23,11 @@ const context = (): ReportContext => {
   const commit = parseCommitSha("a".repeat(40));
   const stage = parseDeploymentStage("pr-42");
   const worker = parseWorkerName("worker");
+
   if (commit._tag === "err" || stage._tag === "err" || worker._tag === "err") {
     throw new Error("fixture failed to parse");
   }
+
   return {
     commitSha: commit.value,
     owner: "owner",
@@ -63,10 +65,12 @@ const deployPlan = (): DeploymentOrchestrationPlan => ({
 const portsFor = (overrides: Partial<DeploymentOrchestrationPorts> = {}) => {
   const reports: DeploymentReportCommand[] = [];
   const diagnostics: string[] = [];
+
   const ports: DeploymentOrchestrationPorts = {
     consumer: () => Promise.resolve(ok("success")),
     diagnostic: (message) => {
       diagnostics.push(message);
+
       return Promise.resolve();
     },
     links: () =>
@@ -79,12 +83,14 @@ const portsFor = (overrides: Partial<DeploymentOrchestrationPorts> = {}) => {
     recheck: () => Promise.resolve(ok(true)),
     report: (command) => {
       reports.push(command);
+
       return Promise.resolve(
         command._tag === "create" ? ok({ deploymentId: 7 }) : ok({})
       );
     },
     ...overrides,
   };
+
   return { diagnostics, ports, reports };
 };
 
@@ -110,11 +116,14 @@ describe("deployment orchestration", () => {
     const { ports, reports } = portsFor({
       links: () => Promise.resolve(err(new Error("URL not found"))),
     });
+
     const result = await runDeploymentOrchestration(deployPlan(), ports);
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.deploymentId).toBe(7);
     }
+
     expect(reports).toEqual([
       { _tag: "create", context: context() },
       {
@@ -131,12 +140,15 @@ describe("deployment orchestration", () => {
     const { ports, reports } = portsFor({
       consumer: () => Promise.resolve(ok("failure")),
     });
+
     const result = await runDeploymentOrchestration(deployPlan(), ports);
 
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.deploymentId).toBe(7);
     }
+
     expect(reports.map(({ _tag }) => _tag)).toEqual([
       "create",
       "complete",
@@ -148,6 +160,7 @@ describe("deployment orchestration", () => {
     const { diagnostics, ports, reports } = portsFor({
       recheck: () => Promise.resolve(err(new Error("head changed"))),
     });
+
     const result = await runDeploymentOrchestration(deployPlan(), ports);
     expect(result._tag).toBe("err");
     expect(reports).toHaveLength(0);
@@ -158,10 +171,12 @@ describe("deployment orchestration", () => {
     const { diagnostics, ports, reports } = portsFor({
       consumer: () => Promise.resolve(ok("failure")),
     });
+
     const result = await runDeploymentOrchestration(
       { _tag: "cleanup", consumer, context: context() },
       ports
     );
+
     expect(result._tag).toBe("err");
     expect(reports).toHaveLength(0);
     expect(diagnostics[0]).toContain("Preview cleanup failed");
@@ -169,6 +184,7 @@ describe("deployment orchestration", () => {
 
   test("reports successful cleanup", async () => {
     const { ports, reports } = portsFor();
+
     const result = await runDeploymentOrchestration(
       { _tag: "cleanup", consumer, context: context() },
       ports

@@ -45,9 +45,11 @@ describe("deployment input parsing", () => {
   test("qualifies only preview physical names", () => {
     const worker = parseWorkerName("x-lookup");
     const preview = parseDeploymentStage("pr-7");
+
     if (worker._tag === "err" || preview._tag === "err") {
       throw new Error("test fixture failed to parse");
     }
+
     expect(physicalWorkerName(worker.value, preview.value)).toBe(
       "pr-7-x-lookup"
     );

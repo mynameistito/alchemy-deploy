@@ -17,9 +17,11 @@ const contextFor = (stageName: string): ReportContext => {
   const commit = parseCommitSha("b".repeat(40));
   const stage = parseDeploymentStage(stageName);
   const worker = parseWorkerName("worker");
+
   if (commit._tag === "err" || stage._tag === "err" || worker._tag === "err") {
     throw new Error("test fixture failed to parse");
   }
+
   return {
     commitSha: commit.value,
     owner: "owner",
@@ -33,15 +35,18 @@ const contextFor = (stageName: string): ReportContext => {
 describe("deployment cleanup", () => {
   test("deactivates each deployment immediately before deleting it", async () => {
     const operations: string[] = [];
+
     const github: GitHubDeploymentPort = {
       createComment: async () => ok(true),
       createDeployment: async () => ok(1),
       createDeploymentStatus: async ({ deploymentId, state }) => {
         operations.push(`${state}:${deploymentId}`);
+
         return ok(true);
       },
       deleteDeployment: async (id) => {
         operations.push(`delete:${id}`);
+
         return ok(true);
       },
       listComments: async () => ok([]),
@@ -52,10 +57,12 @@ describe("deployment cleanup", () => {
         ]),
       updateComment: async () => ok(true),
     };
+
     const result = await runDeploymentReport(github, {
       _tag: "cleanup",
       context: contextFor("pr-8"),
     });
+
     expect(result).toEqual({ _tag: "ok", value: { deletedDeployments: 2 } });
     expect(operations).toEqual([
       "inactive:1",
@@ -67,15 +74,18 @@ describe("deployment cleanup", () => {
 
   test("only cleans records belonging to the configured worker", async () => {
     const operations: string[] = [];
+
     const github: GitHubDeploymentPort = {
       createComment: async () => ok(true),
       createDeployment: async () => ok(1),
       createDeploymentStatus: async ({ deploymentId, state }) => {
         operations.push(`${state}:${deploymentId}`);
+
         return ok(true);
       },
       deleteDeployment: async (id) => {
         operations.push(`delete:${id}`);
+
         return ok(true);
       },
       listComments: async () => ok([]),
@@ -98,6 +108,7 @@ describe("deployment cleanup", () => {
 
   test("refuses production cleanup before listing deployments", async () => {
     let listed = false;
+
     const github: GitHubDeploymentPort = {
       createComment: async () => ok(true),
       createDeployment: async () => ok(1),
@@ -106,14 +117,17 @@ describe("deployment cleanup", () => {
       listComments: async () => ok([]),
       listDeployments: async () => {
         listed = true;
+
         return ok([]);
       },
       updateComment: async () => ok(true),
     };
+
     const result = await runDeploymentReport(github, {
       _tag: "cleanup",
       context: contextFor("prod"),
     });
+
     expect(result._tag).toBe("err");
     expect(listed).toBeFalse();
   });
@@ -157,11 +171,14 @@ describe("deployment creation", () => {
       listDeployments: async () => ok([]),
       updateComment: async () => ok(true),
     };
+
     const result = await runDeploymentReport(github, {
       _tag: "create",
       context: contextFor("prod"),
     });
+
     expect(result._tag).toBe("err");
+
     if (result._tag === "err") {
       expect(result.error.deploymentId).toBe(42);
     }
@@ -169,11 +186,13 @@ describe("deployment creation", () => {
 
   test("completes a failed deployment with its logs URL", async () => {
     const requests: { state: string; logUrl: string }[] = [];
+
     const github: GitHubDeploymentPort = {
       createComment: async () => ok(true),
       createDeployment: async () => ok(1),
       createDeploymentStatus: async (request) => {
         requests.push({ logUrl: request.logUrl ?? "", state: request.state });
+
         return ok(true);
       },
       deleteDeployment: async () => ok(true),
@@ -181,6 +200,7 @@ describe("deployment creation", () => {
       listDeployments: async () => ok([]),
       updateComment: async () => ok(true),
     };
+
     const result = await runDeploymentReport(github, {
       _tag: "complete",
       context: contextFor("prod"),
@@ -197,6 +217,7 @@ describe("deployment creation", () => {
 
   test("updates the existing preview comment", async () => {
     let updated = false;
+
     const github: GitHubDeploymentPort = {
       createComment: async () => ok(true),
       createDeployment: async () => ok(1),
@@ -207,6 +228,7 @@ describe("deployment creation", () => {
       listDeployments: async () => ok([]),
       updateComment: async () => {
         updated = true;
+
         return ok(true);
       },
     };

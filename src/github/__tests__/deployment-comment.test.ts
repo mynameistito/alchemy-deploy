@@ -15,15 +15,18 @@ const parsedFixtures = () => {
   const commit = parseCommitSha("a".repeat(40));
   const stage = parseDeploymentStage("pr-42");
   const worker = parseWorkerName("x-lookup");
+
   if (commit._tag === "err" || stage._tag === "err" || worker._tag === "err") {
     throw new Error("test fixture failed to parse");
   }
+
   return { commit: commit.value, stage: stage.value, worker: worker.value };
 };
 
 describe("deployment comments", () => {
   test("renders stable diagnostics and deployment details", () => {
     const { commit, stage, worker } = parsedFixtures();
+
     const body = renderDeploymentComment({
       commitSha: commit,
       deploymentUrl: "https://pr-42-x-lookup.foo.workers.dev",
@@ -36,6 +39,7 @@ describe("deployment comments", () => {
       updatedAt: new Date("2026-08-23T00:00:00.000Z"),
       worker,
     });
+
     expect(body).toContain(deploymentCommentMarker(stage));
     expect(body).toContain("pr-42-x-lookup");
     expect(body).toContain("2026-08-23T00:00:00.000Z");

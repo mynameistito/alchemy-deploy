@@ -49,6 +49,7 @@ export const parseReportMode = (
   ) {
     return ok(input);
   }
+
   return err(
     new DeploymentInputError(
       "mode",
@@ -73,13 +74,17 @@ export const parseDeploymentStage = (
       )
     );
   }
+
   if (input === productionStage) {
     return ok({ _tag: "production", value: input });
   }
+
   if (input && PREVIEW_STAGE.test(input)) {
     const pullRequest = Number(input.slice(3));
+
     return ok({ _tag: "preview", pullRequest, value: input });
   }
+
   return err(
     new DeploymentInputError(
       "stage",
@@ -97,6 +102,7 @@ export const parseCommitSha = (
       new DeploymentInputError("deployment-sha", "must be a full lowercase SHA")
     );
   }
+
   // SAFETY: The regular expression above establishes the CommitSha invariant.
   return ok(input as CommitSha);
 };
@@ -113,6 +119,7 @@ export const parseWorkerName = (
       )
     );
   }
+
   // SAFETY: The regular expression above establishes the WorkerName invariant.
   return ok(input as WorkerName);
 };

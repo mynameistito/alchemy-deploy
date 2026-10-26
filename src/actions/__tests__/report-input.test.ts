@@ -26,7 +26,9 @@ describe("report action input", () => {
       },
       new Date(0)
     );
+
     expect(result._tag).toBe("ok");
+
     if (result._tag === "ok") {
       expect(result.value.command._tag).toBe("complete");
     }
@@ -62,6 +64,7 @@ describe("report action input", () => {
       },
       new Date(0)
     );
+
     expect(result._tag).toBe("err");
   });
 });

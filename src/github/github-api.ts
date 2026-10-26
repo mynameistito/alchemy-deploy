@@ -187,35 +187,45 @@ export interface GitHubApiConfig {
 }
 
 const githubObjectSchema = z.object({}).catchall(z.json());
+
 type GitHubObject = z.infer<typeof githubObjectSchema>;
+
 type GitHubRequestBody = z.infer<typeof githubObjectSchema>;
+
 const CREATE_DEPLOYMENT = "create deployment";
 
 const parseId = (input: GitHubObject): number | undefined => {
   const id = z.number().int().positive().safeParse(input.id);
+
   if (!id.success || !Number.isSafeInteger(id.data)) {
     return undefined;
   }
+
   return id.data;
 };
 
 const responseMessage = async (response: Response): Promise<string> => {
   const text = await response.text();
   const safeText = text.replaceAll(/\p{Cc}/gu, " ").trim();
+
   if (!safeText) {
     return response.statusText || "request failed";
   }
+
   try {
     const json = githubObjectSchema.safeParse(JSON.parse(safeText));
+
     const message = json.success
       ? z.string().safeParse(json.data.message)
       : undefined;
+
     if (message?.success) {
       return message.data;
     }
   } catch {
     return safeText.slice(0, 300);
   }
+
   return safeText.slice(0, 300);
 };
 
@@ -226,11 +236,21 @@ const nextLink = (
   if (!header) {
     return ok({});
   }
+
   for (const part of header.split(",")) {
-    const match = part.match(/<(?<url>[^>]+)>;\s*rel="next"/u);
-    if (match?.groups?.url) {
+    const trimmed = part.trim();
+    const closingBracket = trimmed.indexOf(">");
+    const relation = trimmed.slice(closingBracket + 1);
+
+    if (
+      trimmed.startsWith("<") &&
+      closingBracket > 1 &&
+      relation.startsWith(";") &&
+      relation.slice(1).trim() === 'rel="next"'
+    ) {
       try {
-        const next = new URL(match.groups.url);
+        const next = new URL(trimmed.slice(1, closingBracket));
+
         if (next.origin !== apiOrigin) {
           return err(
             new GitHubApiError(
@@ -240,6 +260,7 @@ const nextLink = (
             )
           );
         }
+
         return ok({ url: next.href });
       } catch (error) {
         return err(
@@ -253,6 +274,7 @@ const nextLink = (
       }
     }
   }
+
   return ok({});
 };
 
@@ -279,6 +301,7 @@ export const createGitHubApi = (
           ...init.headers,
         },
       });
+
       if (!response.ok) {
         return err(
           new GitHubApiError(
@@ -288,6 +311,7 @@ export const createGitHubApi = (
           )
         );
       }
+
       return ok(response);
     } catch (error) {
       return err(
@@ -308,9 +332,11 @@ export const createGitHubApi = (
     body?: GitHubRequestBody
   ): Promise<Result<Response, GitHubApiError>> => {
     const init: RequestInit = { method };
+
     if (body) {
       init.body = JSON.stringify(body);
     }
+
     return request(operation, `${root}${path}`, init);
   };
 
@@ -321,13 +347,17 @@ export const createGitHubApi = (
   ): Promise<Result<readonly T[], GitHubApiError>> => {
     const values: T[] = [];
     let url: string | undefined = initialUrl;
+
     while (url) {
       // oxlint-disable-next-line no-await-in-loop -- GitHub's next page URL is supplied by the preceding response.
       const response = await request(operation, url);
+
       if (response._tag === "err") {
         return response;
       }
+
       let json: unknown;
+
       try {
         // oxlint-disable-next-line no-await-in-loop -- Parsing belongs to the sequential pagination request.
         json = await response.value.json();
@@ -341,6 +371,7 @@ export const createGitHubApi = (
           )
         );
       }
+
       if (!Array.isArray(json)) {
         return err(
           new GitHubApiError(
@@ -350,8 +381,10 @@ export const createGitHubApi = (
           )
         );
       }
+
       for (const item of json) {
         const object = githubObjectSchema.safeParse(item);
+
         if (!object.success) {
           return err(
             new GitHubApiError(
@@ -361,7 +394,9 @@ export const createGitHubApi = (
             )
           );
         }
+
         const parsed = parse(object.data);
+
         if (!parsed) {
           return err(
             new GitHubApiError(
@@ -371,15 +406,20 @@ export const createGitHubApi = (
             )
           );
         }
+
         values.push(parsed);
       }
+
       const next = nextLink(response.value.headers.get("link"), apiOrigin);
+
       if (next._tag === "err") {
         return next;
       }
+
       const { url: nextPageUrl } = next.value;
       url = nextPageUrl;
     }
+
     return ok(values);
   };
 
@@ -393,6 +433,7 @@ export const createGitHubApi = (
           body,
         }
       );
+
       return response._tag === "ok" ? ok(true) : response;
     },
     createDeployment: async (deployment) => {
@@ -406,10 +447,13 @@ export const createGitHubApi = (
         required_contexts: [],
         transient_environment: !deployment.production,
       });
+
       if (response._tag === "err") {
         return response;
       }
+
       let json: unknown;
+
       try {
         json = await response.value.json();
       } catch (error) {
@@ -422,8 +466,10 @@ export const createGitHubApi = (
           )
         );
       }
+
       const object = githubObjectSchema.safeParse(json);
       const id = object.success ? parseId(object.data) : undefined;
+
       return id
         ? ok(id)
         : err(
@@ -439,18 +485,22 @@ export const createGitHubApi = (
         description: status.description,
         state: status.state,
       };
+
       if (status.environmentUrl) {
         Object.assign(statusBody, { environment_url: status.environmentUrl });
       }
+
       if (status.logUrl) {
         Object.assign(statusBody, { log_url: status.logUrl });
       }
+
       const response = await write(
         "create deployment status",
         `/deployments/${status.deploymentId}/statuses`,
         "POST",
         statusBody
       );
+
       return response._tag === "ok" ? ok(true) : response;
     },
     deleteDeployment: async (deploymentId) => {
@@ -459,6 +509,7 @@ export const createGitHubApi = (
         `/deployments/${deploymentId}`,
         "DELETE"
       );
+
       return response._tag === "ok" ? ok(true) : response;
     },
     getBranchSha: async (branch) => {
@@ -466,16 +517,21 @@ export const createGitHubApi = (
         "get branch",
         `${root}/branches/${encodeURIComponent(branch)}`
       );
+
       if (response._tag === "err") {
         return response;
       }
+
       const json = githubObjectSchema.safeParse(await response.value.json());
+
       const commit = json.success
         ? githubObjectSchema.safeParse(json.data.commit)
         : undefined;
+
       const sha = commit?.success
         ? z.string().length(40).safeParse(commit.data.sha)
         : undefined;
+
       return sha?.success && sha.data.length === 40
         ? ok(sha.data)
         : err(
@@ -491,10 +547,13 @@ export const createGitHubApi = (
         GET_PULL_REQUEST,
         `${root}/pulls/${issueNumber}`
       );
+
       if (response._tag === "err") {
         return response;
       }
+
       const json = githubObjectSchema.safeParse(await response.value.json());
+
       if (!json.success) {
         return err(
           new GitHubApiError(
@@ -504,20 +563,26 @@ export const createGitHubApi = (
           )
         );
       }
+
       const head = githubObjectSchema.safeParse(json.data.head);
       const base = githubObjectSchema.safeParse(json.data.base);
+
       const headRepository = head.success
         ? githubObjectSchema.safeParse(head.data.repo)
         : undefined;
+
       const baseRepository = base.success
         ? githubObjectSchema.safeParse(base.data.repo)
         : undefined;
+
       const headRepositoryId = headRepository?.success
         ? parseId(headRepository.data)
         : undefined;
+
       const repositoryId = baseRepository?.success
         ? parseId(baseRepository.data)
         : undefined;
+
       const details = pullRequestDetailsSchema.safeParse({
         headRepositoryId,
         number: json.data.number,
@@ -525,6 +590,7 @@ export const createGitHubApi = (
         sha: head.success ? head.data.sha : undefined,
         state: json.data.state,
       });
+
       if (!details.success) {
         return err(
           new GitHubApiError(
@@ -534,6 +600,7 @@ export const createGitHubApi = (
           )
         );
       }
+
       return ok(details.data);
     },
     getWorkflowId: async (workflow) => {
@@ -541,11 +608,14 @@ export const createGitHubApi = (
         "get workflow",
         `${config.apiUrl.replace(/\/$/u, "")}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}/actions/workflows/${encodeURIComponent(workflow)}`
       );
+
       if (response._tag === "err") {
         return response;
       }
+
       const json = githubObjectSchema.safeParse(await response.value.json());
       const id = json.success ? parseId(json.data) : undefined;
+
       return id
         ? ok(id)
         : err(
@@ -562,10 +632,14 @@ export const createGitHubApi = (
         `${root}/issues/${issueNumber}/comments?per_page=100`,
         (input) => {
           const id = parseId(input);
+
           if (!id) {
-            return;
+            // oxlint-disable-next-line unicorn/no-useless-undefined -- Explicitly signal an omitted pagination record consistently.
+            return undefined;
           }
+
           const body = z.string().nullable().safeParse(input.body);
+
           return body.success ? { body: body.data, id } : undefined;
         }
       ),
@@ -576,43 +650,57 @@ export const createGitHubApi = (
         (input) => {
           const id = parseId(input);
           const sha = z.string().length(40).safeParse(input.sha);
+
           if (id === undefined || !sha.success) {
-            return;
+            // oxlint-disable-next-line unicorn/no-useless-undefined -- Explicitly signal an omitted pagination record consistently.
+            return undefined;
           }
+
           const payload = githubObjectSchema.safeParse(input.payload);
+
           const worker = payload.success
             ? z.string().safeParse(payload.data.worker)
             : null;
+
           const deployment = { id, sha: sha.data };
+
           return worker?.success
             ? { ...deployment, worker: worker.data }
             : deployment;
         }
       );
+
       if (deployments._tag === "err") {
         return deployments;
       }
+
       const values: GitHubDeployment[] = [];
+
       for (const deployment of deployments.value) {
         // Job environments add payload-less deployment records of their own;
         // only records carrying this action's worker identity are ours to read.
         if (!("worker" in deployment)) {
           continue;
         }
+
         // oxlint-disable-next-line no-await-in-loop -- The latest status belongs to this deployment.
         const response = await request(
           "list deployment statuses",
           `${root}/deployments/${deployment.id}/statuses?per_page=1`
         );
+
         if (response._tag === "err") {
           return response;
         }
+
         // oxlint-disable-next-line no-await-in-loop -- The response is for the current deployment.
         const json: unknown = await response.value.json();
         const statuses = z.array(githubObjectSchema).safeParse(json);
+
         const state = statuses.success
           ? z.string().safeParse(statuses.data[0]?.state)
           : undefined;
+
         if (!state?.success) {
           return err(
             new GitHubApiError(
@@ -622,8 +710,10 @@ export const createGitHubApi = (
             )
           );
         }
+
         values.push({ ...deployment, state: state.data });
       }
+
       return ok(values);
     },
     listPreviewDeployments: async () => {
@@ -632,17 +722,23 @@ export const createGitHubApi = (
         `${root}/deployments?per_page=100`,
         (input) => {
           const environment = z.string().safeParse(input.environment);
+
           if (!environment.success) {
-            return;
+            // oxlint-disable-next-line unicorn/no-useless-undefined -- Explicitly signal an omitted pagination record consistently.
+            return undefined;
           }
+
           const sha = z
             .string()
             .regex(/^[0-9a-f]{40}$/u)
             .safeParse(input.sha);
+
           const payload = githubObjectSchema.safeParse(input.payload);
+
           const worker = payload.success
             ? z.string().safeParse(payload.data.worker)
             : undefined;
+
           return {
             environment: environment.data,
             sha: sha?.success ? sha.data : "",
@@ -650,6 +746,7 @@ export const createGitHubApi = (
           };
         }
       );
+
       return result._tag === "err"
         ? result
         : ok(
@@ -669,6 +766,7 @@ export const createGitHubApi = (
           body,
         }
       );
+
       return response._tag === "ok" ? ok(true) : response;
     },
   };

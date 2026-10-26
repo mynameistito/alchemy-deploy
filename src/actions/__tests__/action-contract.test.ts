@@ -7,6 +7,7 @@ import { parse } from "yaml";
 import { z } from "zod";
 
 const record = z.record(z.string(), z.json());
+
 type YamlRecord = z.infer<typeof record>;
 
 const getCommandLines = (steps: readonly YamlRecord[]): string[] =>
@@ -19,20 +20,25 @@ const reportAction = async () =>
   record.parse(
     parse(await readFile("actions/deployment-report/action.yml", "utf-8"))
   );
+
 const actionPathExpression = ["$", "{{ github.action_path }}"].join("");
+
 const githubExpression = (value: string): string =>
   ["$", `{{ ${value} }}`].join("");
 
 const stepsFor = (metadata: YamlRecord) => {
   const runs = record.parse(metadata.runs);
+
   return z.array(record).parse(runs.steps);
 };
 
 const stepNamed = (steps: readonly YamlRecord[], name: string): YamlRecord => {
   const step = steps.find((candidate) => candidate.name === name);
+
   if (!step) {
     throw new Error(`missing action step: ${name}`);
   }
+
   return step;
 };
 
@@ -42,9 +48,11 @@ const outputsFor = (metadata: YamlRecord) => record.parse(metadata.outputs);
 
 const indexOfStep = (steps: readonly YamlRecord[], name: string): number => {
   const index = steps.findIndex((step) => step.name === name);
+
   if (index === -1) {
     throw new Error(`missing action step: ${name}`);
   }
+
   return index;
 };
 
@@ -59,14 +67,17 @@ describe("composite action contract", () => {
 
     const reportMetadata = await reportAction();
     const reportSteps = stepsFor(reportMetadata);
+
     const reportSetup = stepNamed(
       reportSteps,
       "Set up Bun for deployment reporting"
     );
+
     const reportInstall = stepNamed(
       reportSteps,
       "Install trusted action dependencies"
     );
+
     expect(reportSetup.uses).toBe(
       "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
     );
@@ -82,23 +93,28 @@ describe("composite action contract", () => {
   test("starts both entrypoints from a clean workspace", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "alchemy-deploy-"));
     const repository = path.resolve(".");
+
     const policyEntrypoint = path.join(
       repository,
       "src",
       "actions",
       "deployment-policy-main.ts"
     );
+
     const reportEntrypoint = path.join(
       repository,
       "src",
       "actions",
       "deployment-report-main.ts"
     );
+
     const policyOutput = path.join(directory, "policy-output.txt");
+
     const orchestrationOutput = path.join(
       directory,
       "orchestration-output.txt"
     );
+
     const reportOutput = path.join(directory, "report-output.txt");
 
     const run = async (
@@ -111,10 +127,12 @@ describe("composite action contract", () => {
         stderr: "pipe",
         stdout: "pipe",
       });
+
       const [exitCode, stderr] = await Promise.all([
         process.exited,
         new Response(process.stderr).text(),
       ]);
+
       return { exitCode, stderr };
     };
 
@@ -123,6 +141,7 @@ describe("composite action contract", () => {
         GITHUB_OUTPUT: policyOutput,
         GITHUB_TOKEN: "",
       });
+
       const orchestration = await run(
         policyEntrypoint.replace(
           "deployment-policy-main.ts",
@@ -133,6 +152,7 @@ describe("composite action contract", () => {
           PHASE: "",
         }
       );
+
       const report = await run(reportEntrypoint, {
         GITHUB_OUTPUT: reportOutput,
         MODE: "invalid",
@@ -173,10 +193,12 @@ describe("composite action contract", () => {
     const steps = stepsFor(metadata);
     const resolve = stepNamed(steps, "Resolve and gate deployment target");
     const resolveEnv = envFor(resolve);
+
     const orchestration = stepNamed(
       steps,
       "Run typed deployment orchestration"
     );
+
     const orchestrationEnv = envFor(orchestration);
 
     const expectedInputs = {
@@ -204,13 +226,16 @@ describe("composite action contract", () => {
       "worker-config": { default: "", required: false },
       "worker-name": { required: true },
     } as const;
+
     for (const [name, contract] of Object.entries(expectedInputs)) {
       const input = record.parse(inputs[name]);
       expect(input.required).toBe(contract.required);
+
       if ("default" in contract) {
         expect(input.default).toBe(contract.default);
       }
     }
+
     expect(resolveEnv.CI_WORKFLOW).toContain("inputs.ci-workflow");
     expect(resolveEnv.PRODUCTION_BRANCH).toContain("inputs.production-branch");
     expect(resolveEnv.PRODUCTION_STAGE).toContain("inputs.production-stage");
@@ -231,10 +256,12 @@ describe("composite action contract", () => {
     );
 
     expect(resolve.id).toBe("resolve");
+
     const checkout = stepNamed(
       steps,
       "Check out exact trusted production commit"
     );
+
     expect(checkout.if).toContain("steps.resolve.outputs.preview != 'true'");
     expect(
       stepNamed(steps, "Download artifact from the exact successful CI run").if
@@ -246,6 +273,7 @@ describe("composite action contract", () => {
     expect(
       steps.some((step) => {
         const values = record.safeParse(step.with);
+
         return (
           values.success &&
           String(values.data.ref ?? "").includes(
@@ -261,6 +289,7 @@ describe("composite action contract", () => {
     const workflow = record.parse(
       parse(await readFile(".github/workflows/deploy.yml", "utf-8"))
     );
+
     const triggers = record.parse(workflow.on);
     const workflowCall = record.parse(triggers.workflow_call);
     const inputs = record.parse(workflowCall.inputs);
@@ -292,6 +321,7 @@ describe("composite action contract", () => {
     const metadata = await reportAction();
     const inputs = inputsFor(metadata);
     const outputs = outputsFor(metadata);
+
     const expectedInputs = {
       "deploy-outcome": { required: false },
       "deployment-id": { required: false },
@@ -303,13 +333,16 @@ describe("composite action contract", () => {
       stage: { required: true },
       "worker-name": { required: true },
     } as const;
+
     for (const [name, contract] of Object.entries(expectedInputs)) {
       const input = record.parse(inputs[name]);
       expect(input.required).toBe(contract.required);
+
       if ("default" in contract) {
         expect(input.default).toBe(contract.default);
       }
     }
+
     for (const [name, source] of [
       ["deployment-id", githubExpression("steps.report.outputs.deployment-id")],
       [
@@ -319,6 +352,7 @@ describe("composite action contract", () => {
     ] as const) {
       expect(record.parse(outputs[name]).value).toBe(source);
     }
+
     const report = stepNamed(stepsFor(metadata), "Report deployment");
     expect(report.id).toBe("report");
     expect(envFor(report)).toMatchObject({
@@ -330,13 +364,16 @@ describe("composite action contract", () => {
 
   test("routes PR Worker Previews through trusted Alchemy and opaque artifacts", async () => {
     const steps = stepsFor(await action());
+
     const environment = envFor(
       stepNamed(steps, "Run typed deployment orchestration")
     );
+
     const orchestration = await readFile(
       "src/actions/deployment-orchestration-main.ts",
       "utf-8"
     );
+
     const previewStack = await readFile("src/worker-preview.run.ts", "utf-8");
     expect(environment.GITHUB_TOKEN).toContain("env.GITHUB_TOKEN");
     expect(orchestration).toContain('context.stage._tag === "preview"');
@@ -363,9 +400,11 @@ describe("composite action contract", () => {
     expect(environment.ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS).toContain(
       "inputs.preview-compatibility-flags"
     );
+
     const reconcileEnvironment = envFor(
       stepNamed(steps, "Run scheduled preview reconcile")
     );
+
     expect(reconcileEnvironment.ALCHEMY_PREVIEW_COMPATIBILITY_DATE).toContain(
       "inputs.preview-compatibility-date"
     );
@@ -380,10 +419,12 @@ describe("composite action contract", () => {
 
   test("keeps consumer execution on the Bash compatibility boundary", async () => {
     const steps = stepsFor(await action());
+
     const orchestration = stepNamed(
       steps,
       "Run typed deployment orchestration"
     );
+
     const source = await readFile("src/actions/deployment-command.ts", "utf-8");
 
     expect(orchestration.shell).toBe("bash");
@@ -397,6 +438,7 @@ describe("composite action contract", () => {
     const steps = stepsFor(await action());
     const policySetup = stepNamed(steps, "Set up Bun for policy resolution");
     expect(policySetup.with).toEqual({ "bun-version": "1.4.2" });
+
     for (const name of [
       "Install trusted action dependencies",
       "Set up Bun for artifact-only preview",
@@ -408,6 +450,7 @@ describe("composite action contract", () => {
       expect(environment.CLOUDFLARE_ACCOUNT_ID).toBe("");
       expect(environment.CLOUDFLARE_API_TOKEN).toBe("");
     }
+
     expect(
       record.parse(
         stepNamed(steps, "Set up Bun for artifact-only preview").with
