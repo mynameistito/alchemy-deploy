@@ -9,7 +9,7 @@ Deploy [Alchemy](https://alchemy.run/) Cloudflare Workers from GitHub Actions wi
 
 The root action is the recommended integration. Production commands run from the exact trusted production commit. PR previews use a prebuilt CI artifact and this action's pinned Alchemy runtime to create a first-class Worker Preview.
 
-PR preview deployment does not check out or execute pull-request-controlled Alchemy configuration. Build the Worker in CI without Cloudflare or GitHub write credentials, then upload its complete, runtime-ready bundle as an Actions artifact. The trusted action downloads that artifact from the exact successful CI run and Alchemy uploads its bytes with `bundle: false`. The bundle itself is untrusted code and runs on Cloudflare once deployed; it never runs in the credentialed deployment process. Fork PRs remain ineligible for privileged deployment.
+PR preview deployment does not check out or execute pull-request-controlled Alchemy configuration. Build the Worker in CI without Cloudflare or GitHub write credentials, then upload its complete, runtime-ready bundle as an Actions artifact. The trusted action downloads that artifact from the exact successful CI run and Alchemy uploads its bytes with `bundle: false`. The bundle itself is untrusted code and runs on Cloudflare once deployed; it never runs in the credentialed deployment process. Fork PRs remain denied by default. A caller may opt in only when it independently resolves the PR and protects the deployment job with a required-reviewer environment. The fork bundle still runs only on Cloudflare, never in the credentialed action process.
 
 ## Usage
 
@@ -88,6 +88,7 @@ Add these repository secrets:
 | `production-url` | Yes |  | Canonical HTTPS URL for the production deployment. |
 | `production-stage` | No | `prod` | Alchemy stage reserved for production. |
 | `use-adopt` | No | `false` | Append `--adopt` to the deploy command. |
+| `allow-fork-commits` | No | `false` | Permit approved fork previews only from a separately protected deployment job. Fork commits remain denied by default. |
 | `worker-config` | No |  | Optional JSON object of environment bindings for the trusted Preview stack. |
 | `preview-artifact` | No | `alchemy-worker` | CI artifact name containing the complete Worker bundle. |
 | `preview-entrypoint` | No | `index.js` | Entrypoint path relative to the artifact root; it must resolve to a regular file inside the artifact. |
@@ -98,6 +99,7 @@ Add these repository secrets:
 | `preview-url-pattern` | No | `https://{stage}-{worker}.*.workers.dev` | URL glob for the Preview URL. It must contain `{worker}` and `{stage}`. First-class Preview URLs use stage-worker ordering. `*` matches one URL path segment. |
 | `ci-workflow` | No | `ci.yml` | CI workflow file used for exact-SHA gating. |
 | `production-branch` | No | `main` | Branch allowed to deploy production. |
+| `pull-request-number` | No |  | Independently resolved pull request number for workflow_run events where GitHub does not attach a PR. |
 | `install-command` | No | `bun install --frozen-lockfile` | Frozen Bun dependency installation command. |
 | `reconcile` | No | `false` | Destroy previews whose pull request is no longer open. Run it from a scheduled job so a missed `pull_request: closed` event cannot leave a preview Worker serving. |
 

@@ -3,6 +3,7 @@ import type { Result } from "@/shared/result.ts";
 
 export interface PolicyInput {
   readonly action?: string;
+  readonly allowForkCommits?: boolean;
   readonly branch?: string;
   readonly conclusion?: string;
   readonly currentMainSha?: string;
@@ -86,9 +87,15 @@ export const deploymentPolicy = (input: PolicyInput): PolicyDecision => {
     return { kind: "noop", reason: stage.error };
   }
 
-  return pullRequest.state === "open" &&
-    pullRequest.headRepositoryId === pullRequest.repositoryId &&
-    pullRequest.sha === input.sha
+  const pullRequestIsOpen = pullRequest.state === "open";
+
+  const forkIsAllowed =
+    input.allowForkCommits === true ||
+    pullRequest.headRepositoryId === pullRequest.repositoryId;
+
+  const pullRequestIsCurrent = pullRequest.sha === input.sha;
+
+  return pullRequestIsOpen && forkIsAllowed && pullRequestIsCurrent
     ? { kind: "deploy", sha: input.sha, stage: stage.value }
     : { kind: "noop", reason: "stale or untrusted pull request CI" };
 };

@@ -21,6 +21,10 @@ inputs:
     description: Append --adopt to the configured deploy command
     default: false
     required: false
+  allow-fork-commits:
+    description: Allow explicitly approved fork commits for preview deployments
+    default: false
+    required: false
   worker-config:
     description: Optional JSON environment bindings for the trusted Worker Preview stack
     default: ""
@@ -61,6 +65,10 @@ inputs:
     description: Branch allowed to deploy production
     default: main
     required: false
+  pull-request-number:
+    description: Resolved pull request number for workflow_run events
+    default: ""
+    required: false
   install-command:
     description: Frozen Bun dependency installation command
     default: bun install --frozen-lockfile
@@ -99,7 +107,8 @@ runs:
         EVENT_NAME: ${{ github.event_name }}
         EVENT_ACTION: ${{ github.event.action }}
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
-        PULL_REQUEST_NUMBER: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || github.event.pull_request.number }}
+        PULL_REQUEST_NUMBER: ${{ inputs.pull-request-number || (github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || github.event.pull_request.number) }}
+        ALLOW_FORK_COMMITS: ${{ inputs.allow-fork-commits }}
         PULL_REQUEST_REPOSITORY: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.repo.full_name || github.event.pull_request.head.repo.full_name }}
         PULL_REQUEST_HEAD_REPOSITORY_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.repo.id || github.event.pull_request.head.repo.id }}
         PULL_REQUEST_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].head.sha || github.event.pull_request.head.sha }}
@@ -185,6 +194,7 @@ runs:
       shell: bash
       env:
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
+        ALLOW_FORK_COMMITS: ${{ inputs.allow-fork-commits }}
         ALCHEMY_PREVIEW_ARTIFACT: ${{ runner.temp }}/alchemy-preview
         ALCHEMY_PREVIEW_ASSETS_DIRECTORY: ${{ inputs.preview-assets-directory }}
         ALCHEMY_PREVIEW_ASSETS_CONFIG: ${{ inputs.preview-assets-config }}
