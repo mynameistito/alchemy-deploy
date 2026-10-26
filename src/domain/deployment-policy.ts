@@ -41,19 +41,24 @@ export const deploymentPolicy = (input: PolicyInput): PolicyDecision => {
         reason: "deployment is trusted workflow_run only",
       };
     }
+
     if (input.number === undefined) {
       return { kind: "noop", reason: "invalid pull request number" };
     }
+
     const stage = previewStage(input.number);
+
     if (stage._tag === "err") {
       return { kind: "noop", reason: stage.error };
     }
+
     return { kind: "cleanup", stage: stage.value };
   }
 
   if (input.conclusion !== "success" || !input.sha) {
     return { kind: "noop", reason: "CI did not succeed" };
   }
+
   if (input.event === "push") {
     return input.branch === input.productionBranch &&
       input.currentMainSha === input.sha
@@ -64,17 +69,23 @@ export const deploymentPolicy = (input: PolicyInput): PolicyDecision => {
         }
       : { kind: "noop", reason: "stale production CI" };
   }
+
   if (input.event !== "pull_request") {
     return { kind: "noop", reason: "unsupported workflow event" };
   }
+
   const { pullRequest } = input;
+
   if (!pullRequest) {
     return { kind: "noop", reason: "pull request was not resolved" };
   }
+
   const stage = previewStage(pullRequest.number);
+
   if (stage._tag === "err") {
     return { kind: "noop", reason: stage.error };
   }
+
   return pullRequest.state === "open" &&
     pullRequest.headRepositoryId === pullRequest.repositoryId &&
     pullRequest.sha === input.sha

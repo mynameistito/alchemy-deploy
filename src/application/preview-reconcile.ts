@@ -37,22 +37,29 @@ const reconcileCandidate = async (
   ports: PreviewReconcilePorts
 ): Promise<CandidateOutcome> => {
   const open = await ports.isPullRequestOpen(candidate.pullRequest);
+
   if (open._tag === "err") {
     await ports.diagnostic(
       `Preview reconcile skipped ${candidate.stage}: ${open.error.message}`
     );
+
     return "skipped";
   }
+
   if (open.value) {
     return "skipped";
   }
+
   const cleanup = await ports.cleanup(candidate);
+
   if (cleanup._tag === "err") {
     await ports.diagnostic(
       `Preview reconcile failed ${candidate.stage}: ${cleanup.error.message}`
     );
+
     return "failed";
   }
+
   return "reconciled";
 };
 
@@ -68,15 +75,19 @@ export const runPreviewReconcile = async (
   ports: PreviewReconcilePorts
 ): Promise<Result<PreviewReconcileOutcome, Error>> => {
   const candidates = await ports.candidates();
+
   if (candidates._tag === "err") {
     return err(candidates.error);
   }
+
   let reconciled = 0;
   let skipped = 0;
   let failed = 0;
+
   for (const candidate of candidates.value) {
     // oxlint-disable-next-line no-await-in-loop -- Preserve serial cleanup and diagnostics per preview.
     const outcome = await reconcileCandidate(candidate, ports);
+
     if (outcome === "failed") {
       failed += 1;
     } else if (outcome === "skipped") {
@@ -85,5 +96,6 @@ export const runPreviewReconcile = async (
       reconciled += 1;
     }
   }
+
   return ok({ failed, reconciled, skipped });
 };

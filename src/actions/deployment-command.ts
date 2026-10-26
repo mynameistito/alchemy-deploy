@@ -8,20 +8,19 @@ import type { Result } from "@/shared/result.ts";
 /** Read a required environment variable supplied by the composite action. */
 export const required = (name: string): Result<string, Error> => {
   const value = Bun.env[name]?.trim();
+
   return value ? ok(value) : err(new Error(`${name} is required`));
 };
 
-const environmentFor = (command: ConsumerCommand) => {
-  const environment = {
+const environmentFor = (command: ConsumerCommand) =>
+  ({
     ...command.environment,
     ALCHEMY_WORKER_CONFIG: Bun.env.ALCHEMY_WORKER_CONFIG ?? "",
     CLOUDFLARE_ACCOUNT_ID: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     CLOUDFLARE_API_TOKEN: Bun.env.CLOUDFLARE_API_TOKEN ?? "",
     GITHUB_TOKEN: "",
     STAGE: command.environment.STAGE ?? "",
-  } satisfies Record<string, string>;
-  return environment;
-};
+  }) satisfies Record<string, string>;
 
 /**
  * Run one consumer command through the Bash compatibility boundary, streaming
@@ -32,6 +31,7 @@ export const runConsumerCommand = async (
   command: ConsumerCommand
 ): Promise<Result<"success" | "failure", Error>> => {
   await writeFile(command.logPath, "", "utf-8");
+
   const outcome = await runConsumerAttemptWithRetry(async () => {
     const process = Bun.spawn(
       [
@@ -52,15 +52,19 @@ export const runConsumerCommand = async (
         stdout: "inherit",
       }
     );
+
     const exitCode = await process.exited;
+
     return { exitCode, output: await readFile(command.logPath, "utf-8") };
   }, Bun.env.PHASE === "deploy");
+
   return ok(outcome);
 };
 
 /** Preserve diagnostics when a failed phase cannot report them to GitHub. */
 export const diagnostic = async (message: string): Promise<void> => {
   const path = Bun.env.GITHUB_STEP_SUMMARY;
+
   if (path) {
     await appendFile(
       path,

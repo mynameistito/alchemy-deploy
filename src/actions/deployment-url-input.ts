@@ -34,6 +34,7 @@ const required = (
   name: string
 ): Result<string, DeploymentInputError> => {
   const value = environment[name]?.trim();
+
   return value
     ? ok(value)
     : err(new DeploymentInputError(name.toLowerCase(), "is required"));
@@ -48,34 +49,44 @@ export const parseDeploymentUrlEnvironment = (
   const productionUrl = required(environment, "PRODUCTION_URL");
   const previewUrlPattern = required(environment, "PREVIEW_PATTERN");
   const outcome = environment.OUTCOME;
+
   const stage = parseDeploymentStage(
     environment.STAGE,
     environment.PRODUCTION_STAGE ?? "prod"
   );
+
   const worker = parseWorkerName(environment.WORKER);
+
   if (accountId._tag === "err") {
     return accountId;
   }
+
   if (logPath._tag === "err") {
     return logPath;
   }
+
   if (productionUrl._tag === "err") {
     return productionUrl;
   }
+
   if (previewUrlPattern._tag === "err") {
     return previewUrlPattern;
   }
+
   if (outcome !== "success" && outcome !== "failure") {
     return err(
       new DeploymentInputError("outcome", "must be success or failure")
     );
   }
+
   if (stage._tag === "err") {
     return stage;
   }
+
   if (worker._tag === "err") {
     return worker;
   }
+
   return ok({
     accountId: accountId.value,
     logPath: logPath.value,

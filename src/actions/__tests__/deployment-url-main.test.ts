@@ -20,6 +20,7 @@ const fixture = async (log: string) => {
   const logPath = path.join(directory, "alchemy-deploy.log");
   const outputPath = path.join(directory, "github-output");
   await writeFile(logPath, log);
+
   return { LOG_PATH: logPath, outputPath };
 };
 
@@ -28,6 +29,7 @@ describe("deployment URL action entrypoint", () => {
     const paths = await fixture(
       "noise (https://pr-42-worker.foo.workers.dev)."
     );
+
     expect(
       await runDeploymentUrl({
         ...base,
@@ -71,6 +73,7 @@ describe("deployment URL action entrypoint", () => {
 
   test("rejects malformed, insecure, unmatched, and incomplete input", async () => {
     const paths = await fixture("https://pr-42-worker.foo.workers.dev");
+
     const cases = [
       { ...base, ...paths, PREVIEW_PATTERN: "https://*.workers.dev" },
       {
@@ -83,11 +86,13 @@ describe("deployment URL action entrypoint", () => {
       { ...base, ...paths, WORKER: "" },
       { ...base, ...paths, STAGE: "pr-41" },
     ];
+
     const results = await Promise.all(
       cases.map((input) =>
         runDeploymentUrl({ ...input, GITHUB_OUTPUT: paths.outputPath })
       )
     );
+
     expect(results).toEqual([1, 1, 1, 1, 1]);
   });
 });

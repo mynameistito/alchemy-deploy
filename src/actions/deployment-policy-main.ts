@@ -31,6 +31,7 @@ class PolicyRuntimeError extends Error {
 
 const integer = (value: string | undefined): number | undefined => {
   const parsed = Number(value);
+
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 };
 
@@ -39,6 +40,7 @@ const required = (
   name: string
 ): Result<string, PolicyRuntimeError> => {
   const value = environment[name]?.trim();
+
   return value ? ok(value) : err(new PolicyRuntimeError(`${name} is required`));
 };
 
@@ -58,17 +60,21 @@ const resolveClosedPullRequest = (
 ): Result<PolicyDecision, PolicyRuntimeError> => {
   const number = integer(environment.PULL_REQUEST_NUMBER);
   const headRepositoryId = integer(environment.PULL_REQUEST_HEAD_REPOSITORY_ID);
+
   let cleanupInput: PolicyInput = {
     action: "closed",
     kind: "pull_request",
     repositoryId,
   };
+
   if (headRepositoryId !== undefined) {
     cleanupInput = { ...cleanupInput, headRepositoryId };
   }
+
   if (number !== undefined) {
     cleanupInput = { ...cleanupInput, number };
   }
+
   return ok(deploymentPolicy(cleanupInput));
 };
 
@@ -80,10 +86,13 @@ const alreadyDeploying = async (
   if (decision.kind !== "deploy") {
     return ok(decision);
   }
+
   const deployments = await github.listDeployments(decision.stage);
+
   if (deployments._tag === "err") {
     return err(new PolicyRuntimeError(deployments.error.message));
   }
+
   const activeDeployments = deployments.value.filter(
     (
       deployment
@@ -95,6 +104,7 @@ const alreadyDeploying = async (
         deployment.sha && deployment.state && deployment.worker === worker
       )
   );
+
   return hasActiveDeployment(activeDeployments, decision.sha)
     ? ok({
         kind: "noop",
@@ -110,13 +120,17 @@ const resolvePullRequestWorkflow = async (
   worker: string
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   const number = integer(environment.PULL_REQUEST_NUMBER);
+
   if (!number) {
     return ok({ kind: "noop", reason: "invalid pull request number" });
   }
+
   const pullRequest = await github.getPullRequest(number);
+
   if (pullRequest._tag === "err") {
     return err(new PolicyRuntimeError(pullRequest.error.message));
   }
+
   return alreadyDeploying(
     deploymentPolicy({ ...baseInput, pullRequest: pullRequest.value }),
     github,
@@ -131,9 +145,11 @@ const resolvePushWorkflow = async (
   worker: string
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   const current = await github.getBranchSha(branch);
+
   if (current._tag === "err") {
     return err(new PolicyRuntimeError(current.error.message));
   }
+
   return alreadyDeploying(
     deploymentPolicy({ ...baseInput, currentMainSha: current.value }),
     github,
@@ -149,18 +165,23 @@ const resolveWorkflowRun = async (
   if (environment.WORKFLOW_RUN_CONCLUSION !== "success") {
     return ok({ kind: "noop", reason: "CI did not succeed" });
   }
+
   const workflow = required(environment, "CI_WORKFLOW");
   const configuredBranch = required(environment, "PRODUCTION_BRANCH");
   const sha = required(environment, "DEPLOYMENT_SHA");
+
   if (workflow._tag === "err") {
     return workflow;
   }
+
   if (configuredBranch._tag === "err") {
     return configuredBranch;
   }
+
   if (sha._tag === "err") {
     return sha;
   }
+
   if (!/^[0-9a-f]{40}$/u.test(sha.value)) {
     return err(
       new PolicyRuntimeError(
@@ -168,19 +189,25 @@ const resolveWorkflowRun = async (
       )
     );
   }
+
   const workflowId = integer(environment.WORKFLOW_RUN_ID);
+
   if (!workflowId) {
     return err(
       new PolicyRuntimeError("WORKFLOW_RUN_ID must be a positive integer")
     );
   }
+
   const expectedWorkflow = await github.getWorkflowId(workflow.value);
+
   if (expectedWorkflow._tag === "err") {
     return err(new PolicyRuntimeError(expectedWorkflow.error.message));
   }
+
   if (expectedWorkflow.value !== workflowId) {
     return ok({ kind: "noop", reason: "configured workflow mismatch" });
   }
+
   let baseInput: PolicyInput = {
     conclusion: environment.WORKFLOW_RUN_CONCLUSION,
     kind: "workflow_run",
@@ -188,18 +215,22 @@ const resolveWorkflowRun = async (
     productionStage: environment.PRODUCTION_STAGE ?? "prod",
     sha: sha.value,
   };
+
   if (environment.WORKFLOW_RUN_BRANCH) {
     baseInput = { ...baseInput, branch: environment.WORKFLOW_RUN_BRANCH };
   }
+
   if (
     environment.WORKFLOW_RUN_EVENT === "push" ||
     environment.WORKFLOW_RUN_EVENT === "pull_request"
   ) {
     baseInput = { ...baseInput, event: environment.WORKFLOW_RUN_EVENT };
   }
+
   if (baseInput.event === "pull_request") {
     return resolvePullRequestWorkflow(baseInput, environment, github, worker);
   }
+
   if (baseInput.event === "push") {
     return resolvePushWorkflow(
       baseInput,
@@ -208,6 +239,7 @@ const resolveWorkflowRun = async (
       worker
     );
   }
+
   return ok(deploymentPolicy(baseInput));
 };
 
@@ -216,27 +248,34 @@ const resolve = (
   github: GitHubPolicyPort
 ): Promise<Result<PolicyDecision, PolicyRuntimeError>> => {
   const repositoryId = integer(environment.REPOSITORY_ID);
+
   if (!repositoryId) {
     return Promise.resolve(
       err(new PolicyRuntimeError("REPOSITORY_ID must be a positive integer"))
     );
   }
+
   const event = environment.EVENT_NAME;
+
   if (
     (event === "pull_request" || event === "pull_request_target") &&
     environment.EVENT_ACTION === "closed"
   ) {
     return Promise.resolve(resolveClosedPullRequest(environment, repositoryId));
   }
+
   if (event !== "workflow_run") {
     return Promise.resolve(
       ok({ kind: "noop", reason: "unsupported action event" })
     );
   }
+
   const worker = parseWorkerName(environment.WORKER_NAME);
+
   if (worker._tag === "err") {
     return Promise.resolve(err(new PolicyRuntimeError(worker.error.message)));
   }
+
   return resolveWorkflowRun(environment, github, worker.value);
 };
 
@@ -246,21 +285,27 @@ export const recheckDeploymentPolicy = async (
   github: GitHubPolicyPort
 ): Promise<Result<true, PolicyRuntimeError>> => {
   const sha = required(environment, "DEPLOYMENT_SHA");
+
   const stage = parseDeploymentStage(
     environment.STAGE,
     environment.PRODUCTION_STAGE ?? "prod"
   );
+
   if (sha._tag === "err") {
     return sha;
   }
+
   if (stage._tag === "err") {
     return err(new PolicyRuntimeError(stage.error.message));
   }
+
   if (stage.value._tag === "production") {
     const branch = required(environment, "PRODUCTION_BRANCH");
+
     if (branch._tag === "err") {
       return branch;
     }
+
     if (
       environment.EVENT_NAME !== "workflow_run" ||
       environment.WORKFLOW_RUN_BRANCH !== branch.value
@@ -271,10 +316,13 @@ export const recheckDeploymentPolicy = async (
         )
       );
     }
+
     const current = await github.getBranchSha(branch.value);
+
     if (current._tag === "err") {
       return err(new PolicyRuntimeError(current.error.message));
     }
+
     return current.value === sha.value
       ? ok(true)
       : err(
@@ -286,6 +334,7 @@ export const recheckDeploymentPolicy = async (
 
   const number = integer(environment.PULL_REQUEST_NUMBER);
   const repositoryId = integer(environment.REPOSITORY_ID);
+
   if (!number || !repositoryId) {
     return err(
       new PolicyRuntimeError(
@@ -293,11 +342,15 @@ export const recheckDeploymentPolicy = async (
       )
     );
   }
+
   const pullRequest = await github.getPullRequest(number);
+
   if (pullRequest._tag === "err") {
     return err(new PolicyRuntimeError(pullRequest.error.message));
   }
+
   const current = pullRequest.value;
+
   return hasTrustedPullRequest(current, repositoryId, sha.value)
     ? ok(true)
     : err(
@@ -316,6 +369,7 @@ export const runDeploymentPolicy = async (
   await output("deploy", "false");
   await output("cleanup", "false");
   const decision = await resolve(environment, github);
+
   if (decision._tag === "ok") {
     if (decision.value.kind === "deploy") {
       await output("deploy", "true");
@@ -327,57 +381,78 @@ export const runDeploymentPolicy = async (
         )
       );
       await output("stage", decision.value.stage);
+
       if (environment.PULL_REQUEST_NUMBER) {
         await output("pull-request-number", environment.PULL_REQUEST_NUMBER);
       }
     }
+
     if (decision.value.kind === "cleanup") {
       await output("cleanup", "true");
       await output("stage", decision.value.stage);
     }
   }
+
   return decision;
 };
 
 const main = async (): Promise<number> => {
   const token = required(Bun.env, "GITHUB_TOKEN");
   const repository = required(Bun.env, "REPOSITORY");
+
   if (token._tag === "err") {
     console.error(`::error::${token.error.message}`);
+
     return 1;
   }
+
   if (repository._tag === "err") {
     console.error(`::error::${repository.error.message}`);
+
     return 1;
   }
+
   const [owner, name] = repository.value.split("/");
+
   if (!owner || !name) {
     console.error("::error::REPOSITORY must be owner/repository");
+
     return 1;
   }
+
   const github = createGitHubApi({
     apiUrl: Bun.env.GITHUB_API_URL ?? "https://api.github.com",
     owner,
     repository: name,
     token: token.value,
   });
+
   if (Bun.env.RECHECK === "true") {
     const result = await recheckDeploymentPolicy(Bun.env, github);
+
     if (result._tag === "err") {
       console.error(`::error::${result.error.message}`);
+
       return 1;
     }
+
     return 0;
   }
+
   const outputPath = Bun.env.GITHUB_OUTPUT;
+
   const output: PolicyOutput = outputPath
     ? (key, value) => appendFile(outputPath, `${key}=${value}\n`, "utf-8")
     : () => Promise.resolve();
+
   const result = await runDeploymentPolicy(Bun.env, github, output);
+
   if (result._tag === "err") {
     console.error(`::error::${result.error.message}`);
+
     return 1;
   }
+
   return 0;
 };
 

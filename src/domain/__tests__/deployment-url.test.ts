@@ -9,15 +9,18 @@ import { parseDeploymentStage, parseWorkerName } from "@/domain/deployment.ts";
 const fixture = (stageName: string) => {
   const stage = parseDeploymentStage(stageName);
   const worker = parseWorkerName("x-lookup");
+
   if (stage._tag === "err" || worker._tag === "err") {
     throw new Error("test fixture failed to parse");
   }
+
   return { stage: stage.value, worker: worker.value };
 };
 
 describe("deployment URL resolution", () => {
   test("uses configured production URL without trusting log noise", () => {
     const { stage, worker } = fixture("prod");
+
     const result = resolveDeploymentUrl(
       "https://attacker.example",
       stage,
@@ -27,6 +30,7 @@ describe("deployment URL resolution", () => {
         productionUrl: "https://x-lookup.example.com/path",
       }
     );
+
     expect(result).toEqual({
       _tag: "ok",
       value: "https://x-lookup.example.com",
@@ -35,6 +39,7 @@ describe("deployment URL resolution", () => {
 
   test("selects only the configured stage URL and strips punctuation", () => {
     const { stage, worker } = fixture("pr-42");
+
     const result = resolveDeploymentUrl(
       "old https://pr-41-x-lookup.foo.workers.dev new (https://pr-42-x-lookup.foo.workers.dev).",
       stage,
@@ -44,6 +49,7 @@ describe("deployment URL resolution", () => {
         productionUrl: "https://x-lookup.example.com",
       }
     );
+
     expect(result).toEqual({
       _tag: "ok",
       value: "https://pr-42-x-lookup.foo.workers.dev",

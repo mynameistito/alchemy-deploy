@@ -50,13 +50,17 @@ export const renderDeploymentComment = (
 ): string => {
   const marker = deploymentCommentMarker(input.stage);
   const name = physicalWorkerName(input.worker, input.stage);
+
   const displayName =
     input.outcome === "success" && input.deploymentUrl
       ? `[${name}](${input.deploymentUrl})`
       : name;
+
   const commitUrl = `https://github.com/${input.owner}/${input.repository}/commit/${input.commitSha}`;
+
   const status =
     input.outcome === "success" ? "Deployment successful" : "Deployment failed";
+
   return [
     marker,
     `## Deploying with <a href="https://alchemy.run/"><img alt="Alchemy" src="${LOGO_URL}" width="16" height="16"></a> Alchemy`,

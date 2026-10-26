@@ -1,7 +1,7 @@
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { AssetsConfig } from "alchemy/Cloudflare/Workers";
+import type { AssetsConfig } from "@alchemy.run/cloudflare/Workers";
 import { z } from "zod";
 
 const previewAssetsConfigSchema = z
@@ -25,24 +25,31 @@ const previewAssetsConfigSchema = z
   .strict()
   .transform((input): AssetsConfig => {
     const config: AssetsConfig = {};
+
     if (input.headers !== undefined) {
       config.headers = input.headers;
     }
+
     if (input.htmlHandling !== undefined) {
       config.htmlHandling = input.htmlHandling;
     }
+
     if (input.notFoundHandling !== undefined) {
       config.notFoundHandling = input.notFoundHandling;
     }
+
     if (input.redirects !== undefined) {
       config.redirects = input.redirects;
     }
+
     if (input.runWorkerFirst !== undefined) {
       config.runWorkerFirst = input.runWorkerFirst;
     }
+
     if (input.serveDirectly !== undefined) {
       config.serveDirectly = input.serveDirectly;
     }
+
     return config;
   });
 
@@ -50,11 +57,13 @@ const previewAssetsConfigSchema = z
 export const parseWorkerPreviewAssetsConfig = (input: string): AssetsConfig => {
   const parsed: unknown = JSON.parse(input);
   const result = previewAssetsConfigSchema.safeParse(parsed);
+
   if (!result.success) {
     throw new Error(
       "ALCHEMY_PREVIEW_ASSETS_CONFIG must be a valid Worker assets configuration object"
     );
   }
+
   return result.data;
 };
 
@@ -64,6 +73,7 @@ export const resolveWorkerPreviewEntrypoint = async (
   relativeEntrypoint: string
 ): Promise<string> => {
   const artifactRoot = await realpath(artifactDirectory);
+
   if (
     path.isAbsolute(relativeEntrypoint) ||
     relativeEntrypoint.split(/[\\/]/u).some((part) => part === "..")
@@ -74,8 +84,10 @@ export const resolveWorkerPreviewEntrypoint = async (
   const entrypoint = await realpath(
     path.resolve(artifactRoot, relativeEntrypoint)
   );
+
   const relativePath = path.relative(artifactRoot, entrypoint);
   const entrypointStat = await stat(entrypoint);
+
   if (
     relativePath === "" ||
     relativePath.startsWith(`..${path.sep}`) ||
@@ -86,6 +98,7 @@ export const resolveWorkerPreviewEntrypoint = async (
       "Worker artifact entrypoint must be a regular file in the artifact"
     );
   }
+
   return entrypoint;
 };
 
@@ -95,6 +108,7 @@ export const resolveWorkerPreviewAssetsDirectory = async (
   relativeDirectory: string
 ): Promise<string> => {
   const artifactRoot = await realpath(artifactDirectory);
+
   if (
     path.isAbsolute(relativeDirectory) ||
     relativeDirectory.split(/[\\/]/u).some((part) => part === "..")
@@ -107,16 +121,20 @@ export const resolveWorkerPreviewAssetsDirectory = async (
   const assetsDirectory = await realpath(
     path.resolve(artifactRoot, relativeDirectory)
   );
+
   const relativePath = path.relative(artifactRoot, assetsDirectory);
   const assetsStat = await stat(assetsDirectory);
+
   const isOutsideArtifact =
     relativePath === ".." ||
     relativePath.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relativePath);
+
   if (relativePath === "" || isOutsideArtifact || !assetsStat.isDirectory()) {
     throw new Error(
       "Worker Preview assets directory must be a directory inside the artifact"
     );
   }
+
   return assetsDirectory;
 };

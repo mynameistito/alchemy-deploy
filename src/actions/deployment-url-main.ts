@@ -22,10 +22,12 @@ export const runDeploymentUrl = async (
   environment: DeploymentUrlEnvironment
 ): Promise<number> => {
   const parsed = parseDeploymentUrlEnvironment(environment);
+
   if (parsed._tag === "err") {
     console.error(
       `::error::Invalid deployment URL input: ${parsed.error.message}`
     );
+
     return 1;
   }
 
@@ -34,10 +36,13 @@ export const runDeploymentUrl = async (
     parsed.value.worker,
     parsed.value.stage
   );
+
   if (logs._tag === "err") {
     console.error(`::error::${logs.error.message}`);
+
     return 1;
   }
+
   await setOutput(environment.GITHUB_OUTPUT, "logs-url", logs.value);
 
   if (parsed.value.outcome !== "success") {
@@ -45,29 +50,36 @@ export const runDeploymentUrl = async (
   }
 
   let log: string;
+
   try {
     log = await readFile(parsed.value.logPath, "utf-8");
   } catch (error) {
     console.error(
       `::error::Could not read Alchemy deployment output: ${error instanceof Error ? error.message : "unknown error"}`
     );
+
     return 1;
   }
+
   const deployment = resolveDeploymentUrl(
     log,
     parsed.value.stage,
     parsed.value.worker,
     parsed.value.urlConfig
   );
+
   if (deployment._tag === "err") {
     console.error(`::error::${deployment.error.message}`);
+
     return 1;
   }
+
   await setOutput(
     environment.GITHUB_OUTPUT,
     "deployment-url",
     deployment.value
   );
+
   return 0;
 };
 

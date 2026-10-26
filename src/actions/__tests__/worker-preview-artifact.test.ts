@@ -29,6 +29,7 @@ describe("Worker Preview artifact entrypoint", () => {
     "rejects traversal path %s",
     async (entrypoint) => {
       const directory = await mkdtemp(path.join(tmpdir(), "alchemy-preview-"));
+
       try {
         await expect(
           resolveWorkerPreviewEntrypoint(directory, entrypoint)
@@ -42,6 +43,7 @@ describe("Worker Preview artifact entrypoint", () => {
   test("rejects directories and missing files", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "alchemy-preview-"));
     await mkdir(path.join(directory, "folder"));
+
     try {
       await expect(
         resolveWorkerPreviewEntrypoint(directory, "folder")
@@ -96,6 +98,7 @@ describe("Worker Preview artifact assets", () => {
     "rejects traversal path %s",
     async (assetsDirectory) => {
       const directory = await mkdtemp(path.join(tmpdir(), "alchemy-preview-"));
+
       try {
         await expect(
           resolveWorkerPreviewAssetsDirectory(directory, assetsDirectory)
@@ -110,6 +113,7 @@ describe("Worker Preview artifact assets", () => {
     "rejects the artifact root as the assets directory (%s)",
     async (assetsDirectory) => {
       const directory = await mkdtemp(path.join(tmpdir(), "alchemy-preview-"));
+
       try {
         await expect(
           resolveWorkerPreviewAssetsDirectory(directory, assetsDirectory)
@@ -123,6 +127,7 @@ describe("Worker Preview artifact assets", () => {
   test("rejects files and missing directories", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "alchemy-preview-"));
     await writeFile(path.join(directory, "file.txt"), "asset");
+
     try {
       await expect(
         resolveWorkerPreviewAssetsDirectory(directory, "file.txt")

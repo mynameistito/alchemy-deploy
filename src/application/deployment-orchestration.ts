@@ -155,6 +155,7 @@ const completeLinkFailure = async (
   error: Error
 ): Promise<Result<never, DeploymentOrchestrationError>> => {
   await ports.diagnostic(`Deployment link resolution failed: ${error.message}`);
+
   const complete = await ports.report({
     _tag: "complete",
     context: plan.context,
@@ -162,6 +163,7 @@ const completeLinkFailure = async (
     logsUrl: plan.context.runUrl,
     outcome: "failure",
   });
+
   return complete._tag === "err"
     ? reportFailure("deploy", complete, deploymentId)
     : failure("deploy", error, deploymentId);
@@ -174,10 +176,12 @@ const runDeploy = async (
   Result<DeploymentOrchestrationOutput, DeploymentOrchestrationError>
 > => {
   const recheck = await ports.recheck();
+
   if (recheck._tag === "err") {
     await ports.diagnostic(
       `Deployment blocked by stale policy recheck: ${recheck.error.message}`
     );
+
     return failure("deploy", recheck.error);
   }
 
@@ -185,17 +189,22 @@ const runDeploy = async (
     _tag: "create",
     context: plan.context,
   });
+
   if (created._tag === "err") {
     const deploymentId =
       created.error instanceof DeploymentReportError
         ? created.error.deploymentId
         : undefined;
+
     await ports.diagnostic(
       `Deployment reporting failed: ${created.error.message}`
     );
+
     return reportFailure("deploy", created, deploymentId);
   }
+
   const { deploymentId } = created.value;
+
   if (deploymentId === undefined) {
     return failure(
       "deploy",
@@ -206,10 +215,13 @@ const runDeploy = async (
   const command = await ports.consumer(plan.consumer);
   const outcome = command._tag === "ok" ? command.value : "failure";
   const links = await ports.links({ ...plan.links, outcome });
+
   if (links._tag === "err") {
     return completeLinkFailure(plan, ports, deploymentId, links.error);
   }
+
   const resolvedLinks = links.value;
+
   let completeCommand: Extract<DeploymentReportCommand, { _tag: "complete" }> =
     {
       _tag: "complete",
@@ -220,16 +232,20 @@ const runDeploy = async (
         ? "success"
         : "failure",
     };
+
   if (resolvedLinks.deploymentUrl) {
     completeCommand = {
       ...completeCommand,
       deploymentUrl: resolvedLinks.deploymentUrl,
     };
   }
+
   const complete = await ports.report(completeCommand);
+
   if (complete._tag === "err") {
     return reportFailure("deploy", complete, deploymentId);
   }
+
   if (plan.issueNumber !== undefined && plan.context.stage._tag === "preview") {
     let commentCommand: Extract<DeploymentReportCommand, { _tag: "comment" }> =
       {
@@ -242,20 +258,25 @@ const runDeploy = async (
           : "failure",
         updatedAt: new Date(),
       };
+
     if (resolvedLinks.deploymentUrl) {
       commentCommand = {
         ...commentCommand,
         deploymentUrl: resolvedLinks.deploymentUrl,
       };
     }
+
     const comment = await ports.report(commentCommand);
+
     if (comment._tag === "err") {
       return reportFailure("deploy", comment, deploymentId);
     }
   }
+
   if (command._tag === "err") {
     return failure("deploy", command.error, deploymentId);
   }
+
   if (command.value === "failure") {
     return failure(
       "deploy",
@@ -263,6 +284,7 @@ const runDeploy = async (
       deploymentId
     );
   }
+
   return {
     _tag: "ok",
     value: { deploymentId, links: links.value, phase: "deploy" },
@@ -276,28 +298,36 @@ const runCleanup = async (
   Result<DeploymentOrchestrationOutput, DeploymentOrchestrationError>
 > => {
   const command = await ports.consumer(plan.consumer);
+
   if (command._tag === "err") {
     await ports.diagnostic(
       `Preview cleanup failed for ${plan.context.stage.value}: ${command.error.message}`
     );
+
     return failure("cleanup", command.error);
   }
+
   if (command.value === "failure") {
     await ports.diagnostic(
       `Preview cleanup failed for ${plan.context.stage.value}`
     );
+
     return failure("cleanup", new Error("consumer cleanup command failed"));
   }
+
   const report = await ports.report({
     _tag: "cleanup",
     context: plan.context,
   });
+
   if (report._tag === "err") {
     await ports.diagnostic(
       `Preview cleanup reporting failed for ${plan.context.stage.value}: ${report.error.message}`
     );
+
     return reportFailure("cleanup", report);
   }
+
   return { _tag: "ok", value: { phase: "cleanup" } };
 };
 
@@ -312,12 +342,15 @@ export const runDeploymentOrchestration = (
     case "noop": {
       return Promise.resolve({ _tag: "ok", value: { phase: "noop" } });
     }
+
     case "cleanup": {
       return runCleanup(plan, ports);
     }
+
     case "deploy": {
       return runDeploy(plan, ports);
     }
+
     default: {
       throw new Error("Unsupported deployment orchestration plan");
     }

@@ -33,13 +33,17 @@ describe("consumer command retry", () => {
       { exitCode: 1, output: stateStorePlanningFailure },
       { exitCode: 0, output: "Deploy complete" },
     ];
+
     const runAttempt = () => {
       const next = outputs.shift();
+
       if (!next) {
         return Promise.reject(new Error("unexpected extra attempt"));
       }
+
       return Promise.resolve(next);
     };
+
     const delays: number[] = [];
 
     const result = await runConsumerAttemptWithRetry(
@@ -47,6 +51,7 @@ describe("consumer command retry", () => {
       true,
       (duration) => {
         delays.push(duration);
+
         return Promise.resolve();
       }
     );
@@ -58,9 +63,11 @@ describe("consumer command retry", () => {
 
   test("does not retry unrelated failures or successful commands", async () => {
     let attempts = 0;
+
     const unrelatedFailure = await runConsumerAttemptWithRetry(
       () => {
         attempts += 1;
+
         return Promise.resolve({
           exitCode: 1,
           output: "deployment apply failed",
@@ -69,26 +76,31 @@ describe("consumer command retry", () => {
       true,
       () => Promise.resolve()
     );
+
     expect(unrelatedFailure).toBe("failure");
     expect(attempts).toBe(1);
 
     const success = await runConsumerAttemptWithRetry(
       () => {
         attempts += 1;
+
         return Promise.resolve({ exitCode: 0, output: "Deploy complete" });
       },
       true,
       () => Promise.resolve()
     );
+
     expect(success).toBe("success");
     expect(attempts).toBe(2);
   });
 
   test("fails after one retry without starting a third attempt", async () => {
     let attempts = 0;
+
     const result = await runConsumerAttemptWithRetry(
       () => {
         attempts += 1;
+
         return Promise.resolve({
           exitCode: 1,
           output: stateStorePlanningFailure,
@@ -104,9 +116,11 @@ describe("consumer command retry", () => {
 
   test("does not retry cleanup commands", async () => {
     let attempts = 0;
+
     const result = await runConsumerAttemptWithRetry(
       () => {
         attempts += 1;
+
         return Promise.resolve({
           exitCode: 1,
           output: stateStorePlanningFailure,

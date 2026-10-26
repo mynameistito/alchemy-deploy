@@ -25,12 +25,14 @@ const ports = (
 describe("preview reconcile", () => {
   test("destroys only previews whose pull request is closed", async () => {
     const destroyed: string[] = [];
+
     const result = await runPreviewReconcile(
       ports({
         candidates: () =>
           Promise.resolve(ok([candidate("pr-1", 1), candidate("pr-2", 2)])),
         cleanup: (value) => {
           destroyed.push(value.stage);
+
           return Promise.resolve(ok(true));
         },
         isPullRequestOpen: (pullRequest) =>
@@ -44,11 +46,13 @@ describe("preview reconcile", () => {
 
   test("skips a stage whose pull request cannot be resolved", async () => {
     const messages: string[] = [];
+
     const result = await runPreviewReconcile(
       ports({
         candidates: () => Promise.resolve(ok([candidate("pr-9", 9)])),
         diagnostic: (message) => {
           messages.push(message);
+
           return Promise.resolve();
         },
         isPullRequestOpen: () =>
@@ -63,18 +67,21 @@ describe("preview reconcile", () => {
   test("continues the sweep when one cleanup fails", async () => {
     const messages: string[] = [];
     const order: string[] = [];
+
     const result = await runPreviewReconcile(
       ports({
         candidates: () =>
           Promise.resolve(ok([candidate("pr-1", 1), candidate("pr-2", 2)])),
         cleanup: (value) => {
           order.push(value.stage);
+
           return value.stage === "pr-1"
             ? Promise.resolve(err(new Error("destroy failed")))
             : Promise.resolve(ok(true));
         },
         diagnostic: (message) => {
           messages.push(message);
+
           return Promise.resolve();
         },
       })
