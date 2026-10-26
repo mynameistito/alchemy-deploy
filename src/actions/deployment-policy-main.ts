@@ -47,12 +47,19 @@ const required = (
 const hasTrustedPullRequest = (
   current: GitHubPullRequest,
   repositoryId: number,
-  sha: string
-): boolean =>
-  current.state === "open" &&
-  current.repositoryId === repositoryId &&
-  current.headRepositoryId === repositoryId &&
-  current.sha === sha;
+  sha: string,
+  allowForkCommits = false
+): boolean => {
+  const forkIsAllowed =
+    allowForkCommits || current.headRepositoryId === repositoryId;
+
+  return (
+    current.state === "open" &&
+    current.repositoryId === repositoryId &&
+    forkIsAllowed &&
+    current.sha === sha
+  );
+};
 
 const resolveClosedPullRequest = (
   environment: PolicyEnvironment,
@@ -209,6 +216,7 @@ const resolveWorkflowRun = async (
   }
 
   let baseInput: PolicyInput = {
+    allowForkCommits: environment.ALLOW_FORK_COMMITS === "true",
     conclusion: environment.WORKFLOW_RUN_CONCLUSION,
     kind: "workflow_run",
     productionBranch: configuredBranch.value,
@@ -351,7 +359,12 @@ export const recheckDeploymentPolicy = async (
 
   const current = pullRequest.value;
 
-  return hasTrustedPullRequest(current, repositoryId, sha.value)
+  return hasTrustedPullRequest(
+    current,
+    repositoryId,
+    sha.value,
+    environment.ALLOW_FORK_COMMITS === "true"
+  )
     ? ok(true)
     : err(
         new PolicyRuntimeError(
