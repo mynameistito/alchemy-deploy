@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.6
+
+### Patch Changes
+
+- 56153e3: Update the deployment preview runtime for Alchemy v2 beta.84 and current stable Effect 4 packages. Import Cloudflare resources from the dedicated `@alchemy.run/cloudflare` package.
+
 ## 3.1.5
 
 ### Patch Changes
