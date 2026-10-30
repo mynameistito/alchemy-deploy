@@ -26,9 +26,11 @@ test("consumer subprocess receives only the intended deployment credentials", as
         "Git",
         "bin"
       );
+
       await access(path.join(gitBin, "bash.exe"));
       Bun.env.PATH = `${gitBin}${path.delimiter}${Bun.env.PATH ?? ""}`;
     }
+
     Bun.env.OP_SERVICE_ACCOUNT_TOKEN = "synthetic-parent-bootstrap";
     Bun.env.GITHUB_TOKEN = "synthetic-workflow-token";
     Bun.env.CLOUDFLARE_API_TOKEN = "synthetic-cloudflare-token";
