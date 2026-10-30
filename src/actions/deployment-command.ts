@@ -19,6 +19,7 @@ const environmentFor = (command: ConsumerCommand) =>
     CLOUDFLARE_ACCOUNT_ID: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     CLOUDFLARE_API_TOKEN: Bun.env.CLOUDFLARE_API_TOKEN ?? "",
     GITHUB_TOKEN: "",
+    OP_SERVICE_ACCOUNT_TOKEN: "",
     STAGE: command.environment.STAGE ?? "",
   }) satisfies Record<string, string>;
 

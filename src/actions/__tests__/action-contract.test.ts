@@ -460,6 +460,7 @@ describe("composite action contract", () => {
       expect(environment.GITHUB_TOKEN).toBe("");
       expect(environment.CLOUDFLARE_ACCOUNT_ID).toBe("");
       expect(environment.CLOUDFLARE_API_TOKEN).toBe("");
+      expect(environment.OP_SERVICE_ACCOUNT_TOKEN).toBe("");
     }
 
     expect(
