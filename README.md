@@ -205,3 +205,11 @@ bun run validate:changesets
 Run the complete validation suite with `bun run validate`. Releases use [Changesets](https://github.com/changesets/changesets): the release workflow opens the version pull request, then creates an immutable `vX.Y.Z` tag and matching GitHub Release after it merges. Mutable major tags such as `v1` are not maintained.
 
 The reusable reporting implementation is also available under [`actions/deployment-report`](actions/deployment-report), but the root action is the consumer integration path.
+
+### 1Password and Varlock credential bootstrap
+
+Keep the CI build and artifact upload credential-free. Resolve deployment credentials only in a trusted deployment job after selecting the appropriate protected GitHub environment. Store that environment's 1Password service-account bootstrap independently as an environment secret; use a separate service account and vault access for each repository and environment. The bootstrap cannot be fetched from the vault it unlocks. Never expose it to pull request build jobs.
+
+The action accepts `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` through its existing step environment. A caller integrating Varlock must arrange for both values to be available to the action step without printing them or writing resolved environment files, and pass GitHub's ephemeral `GITHUB_TOKEN` separately. Verify actual 1Password item and field IDs before adding references to a schema. Do not substitute example IDs for real credentials. Preview, cleanup and reconcile require their own appropriately scoped trusted environment credentials.
+
+Before changing credentials, review the actual Alchemy operations and a read-only plan. Existing Worker deployment starts with Worker-scoped Editor; route changes and creation of new Workers may require additional separately justified permissions. Validate production, previews and cleanup while retaining the old credential for rollback before revocation.
