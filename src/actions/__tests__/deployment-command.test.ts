@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -13,11 +13,22 @@ test("consumer subprocess receives only the intended deployment credentials", as
     "GITHUB_TOKEN",
     "CLOUDFLARE_API_TOKEN",
     "PHASE",
+    "PATH",
   ] as const;
 
   const previous = names.map((name) => Bun.env[name]);
 
   try {
+    if (process.platform === "win32") {
+      // Windows' system Bash is a WSL launcher, not the action's Bash runtime.
+      const gitBin = path.join(
+        Bun.env.ProgramFiles ?? "C:/Program Files",
+        "Git",
+        "bin"
+      );
+      await access(path.join(gitBin, "bash.exe"));
+      Bun.env.PATH = `${gitBin}${path.delimiter}${Bun.env.PATH ?? ""}`;
+    }
     Bun.env.OP_SERVICE_ACCOUNT_TOKEN = "synthetic-parent-bootstrap";
     Bun.env.GITHUB_TOKEN = "synthetic-workflow-token";
     Bun.env.CLOUDFLARE_API_TOKEN = "synthetic-cloudflare-token";
@@ -30,7 +41,7 @@ test("consumer subprocess receives only the intended deployment credentials", as
         GITHUB_TOKEN: "synthetic-command-github",
         OP_SERVICE_ACCOUNT_TOKEN: "synthetic-command-bootstrap",
       },
-      logPath: path.join(directory, "consumer.log"),
+      logPath: path.join(directory, "consumer.log").replaceAll("\\", "/"),
     });
 
     expect(result).toEqual({ _tag: "ok", value: "success" });
