@@ -95,7 +95,11 @@ test("public references classify and resolve one immutable projected snapshot", 
         bindings.push(data);
       }),
   };
-  const refs = await Effect.runPromise(nativeReferenceBindings(parsed()));
+  const refs = await Effect.runPromise(
+    nativeReferenceBindings(parsed()).pipe(
+      Effect.provideService(State, Effect.succeed(guarded))
+    )
+  );
   await Effect.runPromise(
     provider.bindWorkerAsyncBindings(resource, { env: refs })
   );
@@ -235,4 +239,49 @@ test("guard denies unlisted reads and cross-stack writes", async () => {
       "Failure"
     );
   }
+});
+
+test("Workflow references use validated cross-script identity without creating a local workflow", async () => {
+  const workflowEnv = {
+    ...env,
+    ALCHEMY_WORKER_STATE_BINDINGS: JSON.stringify({
+      JOB: { id: "job", stack: "isolated", stage: "pr-1", type: "workflow" },
+    }),
+  };
+  const parsedPolicy = parseNativeReferencePolicy(workflowEnv, "pr-1");
+  if (parsedPolicy._tag === "err" || !parsedPolicy.value) {
+    throw new Error("invalid policy");
+  }
+  const job = row("job", "Cloudflare.Workflow", {
+    accountId: account,
+    workflowId: "id",
+    workflowName: "pr-1-job",
+    className: "Job",
+    scriptName: "pr-1-host",
+  });
+  const base = await Effect.runPromise(
+    InMemoryService({ isolated: { "pr-1": { job } } })
+  );
+  const guarded = await Effect.runPromise(
+    nativeReferenceState(base, parsedPolicy.value)
+  );
+  const bindings = await Effect.runPromise(
+    nativeReferenceBindings(parsedPolicy.value).pipe(
+      Effect.provideService(State, Effect.succeed(guarded))
+    )
+  );
+  expect(bindings.JOB).toMatchObject({
+    kind: "Cloudflare.Workflow",
+    workflowName: "pr-1-job",
+    className: "Job",
+    scriptName: "pr-1-host",
+  });
+  job.attr.accountId = "wrong";
+  expect(bindings.JOB).toMatchObject({ workflowName: "pr-1-job" });
+  const invalidBase = await Effect.runPromise(
+    InMemoryService({ isolated: { "pr-1": { job } } })
+  );
+  await expect(
+    Effect.runPromise(nativeReferenceState(invalidBase, parsedPolicy.value))
+  ).rejects.toThrow();
 });
