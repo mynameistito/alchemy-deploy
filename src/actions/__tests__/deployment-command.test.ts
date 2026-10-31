@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -21,13 +22,24 @@ test("consumer subprocess receives only the intended deployment credentials", as
   try {
     if (process.platform === "win32") {
       // Windows' system Bash is a WSL launcher, not the action's Bash runtime.
-      const gitBin = path.join(
-        Bun.env.ProgramFiles ?? "C:/Program Files",
-        "Git",
-        "bin"
-      );
+      const gitExecutable = Bun.which("git.exe");
 
-      await access(path.join(gitBin, "bash.exe"));
+      const roots = [
+        gitExecutable ? path.resolve(path.dirname(gitExecutable), "..") : "",
+        path.join(Bun.env.ProgramFiles ?? "C:/Program Files", "Git"),
+        Bun.env.LOCALAPPDATA
+          ? path.join(Bun.env.LOCALAPPDATA, "Programs", "Git")
+          : "",
+      ].filter(Boolean);
+
+      const gitBin = roots
+        .map((root) => path.join(root, "bin"))
+        .find((candidate) => existsSync(path.join(candidate, "bash.exe")));
+
+      if (!gitBin) {
+        throw new Error("Git Bash is required for the Windows subprocess test");
+      }
+
       Bun.env.PATH = `${gitBin}${path.delimiter}${Bun.env.PATH ?? ""}`;
     }
 
