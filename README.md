@@ -89,7 +89,8 @@ Add these repository secrets:
 | `production-stage` | No | `prod` | Alchemy stage reserved for production. |
 | `use-adopt` | No | `false` | Append `--adopt` to the deploy command. |
 | `allow-fork-commits` | No | `false` | Permit approved fork previews only from a separately protected deployment job. Fork commits remain denied by default. |
-| `worker-config` | No |  | Optional JSON object of environment bindings for the trusted Preview stack. |
+| `worker-config` | No |  | Optional JSON object of **public** Preview environment values. Strings become plain text; other JSON values remain JSON. Never put secrets here. |
+| `worker-secrets` | No |  | Optional JSON object mapping Preview environment names to secret strings. Values become Cloudflare `secret_text` bindings. |
 | `preview-artifact` | No | `alchemy-worker` | CI artifact name containing the complete Worker bundle. |
 | `preview-entrypoint` | No | `index.js` | Entrypoint path relative to the artifact root; it must resolve to a regular file inside the artifact. |
 | `preview-assets-directory` | No |  | Optional static asset directory relative to the artifact root; it must resolve to a directory inside the artifact. |
@@ -169,6 +170,18 @@ The PR artifact is untrusted input. The trusted action validates that the select
 
 ## Worker Preview semantics
 
+Supply distinct development credentials that are safe for the Preview code to use, not production credentials. For the composite action, store a JSON object such as `{"SESSION_SECRET":"<preview-development-value>"}` as the GitHub secret `PREVIEW_WORKER_SECRETS`, then reference it by name:
+
+```yaml
+with:
+  worker-config: '{"APP_ENV":"preview"}'
+  worker-secrets: ${{ secrets.PREVIEW_WORKER_SECRETS }}
+```
+
+The reusable workflow currently pins v3.1.8, which cannot accept Preview secrets. It rejects a nonempty `worker-secrets` input or `WORKER_SECRETS` secret until a published release is pinned and the guard is removed. Use the composite action pinned to a release containing this feature in the meantime. Empty inputs preserve the existing behavior. Both maps must be JSON objects with unique, non-overlapping identifier keys (letters, digits and underscores, starting with a letter or underscore); Alchemy runtime and prototype-related names are reserved. Secret values must be strings. Configure GitHub secrets and their scope outside this action; no 1Password authentication is required.
+
+These inputs support ordinary JSON values and secret strings only. JSON objects resembling D1, KV, Durable Object, service, or other native binding descriptors remain JSON values; they do not create native bindings. Use a separate trusted infrastructure configuration when those resources are needed. The action does not establish whether Cloudflare implicitly inherits omitted parent bindings; verify Preview isolation and access controls with non-sensitive fixtures before allowing untrusted code to run.
+
 This integration uses Alchemy `2.0.0-beta.84`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). Branch/PR Previews are first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
 
 Do not treat every Alchemy `version` as a PR Preview:
@@ -210,8 +223,12 @@ The reusable reporting implementation is also available under [`actions/deployme
 
 ### 1Password and Varlock credential bootstrap
 
-Keep the CI build and artifact upload credential-free. Resolve deployment credentials only in a trusted deployment job after selecting the appropriate protected GitHub environment. Store that environment's 1Password service-account bootstrap independently as an environment secret; use a separate service account and vault access for each repository and environment. The bootstrap cannot be fetched from the vault it unlocks. Never expose it to pull request build jobs.
+Keep the CI build and artifact upload credential-free. Resolve deployment credentials only in a trusted deployment job after selecting the appropriate protected GitHub environment. 1Password is optional: callers supplying already-resolved protected credentials do not need a 1Password bootstrap. If permitted and selected for non-interactive CI, store that environment's bootstrap independently as an environment secret and verify its actual vault access. The bootstrap cannot be fetched from the vault it unlocks. A shared vault does not enforce item-level isolation between repositories. Never expose the bootstrap to pull request build jobs.
 
 The action accepts `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` through its existing step environment. A caller integrating Varlock must arrange for both values to be available to the action step without printing them or writing resolved environment files, and pass GitHub's ephemeral `GITHUB_TOKEN` separately. Verify actual 1Password item and field IDs before adding references to a schema. Do not substitute example IDs for real credentials. Preview, cleanup and reconcile require their own appropriately scoped trusted environment credentials.
 
+Consumer subprocesses do not receive `GITHUB_TOKEN`, `GH_TOKEN`, `OP_SERVICE_ACCOUNT_TOKEN`, or `OP_CONNECT_TOKEN`. Resolve any required values before invoking the action. Preview secret inputs are forwarded only to preview creation, and are cleared from production and cleanup commands.
+
 Before changing credentials, review the actual Alchemy operations and a read-only plan. Existing Worker deployment starts with Worker-scoped Editor; route changes and creation of new Workers may require additional separately justified permissions. Validate production, previews and cleanup while retaining the old credential for rollback before revocation.
+
+The optional `preview-state-url`, `preview-state-expected-origin`, and `preview-state-token` inputs select a preprovisioned HTTP state backend for trusted preview deploys and cleanup. Supply all three: both URLs must name the same HTTPS origin, and the backend URL must be its root. The token must be supplied as a GitHub secret. The backend must implement Alchemy beta.84 state API version 7. Its bearer grants access across the backend, not only to one stack; operators must isolate backends and tokens according to their trust boundaries. With these inputs absent, the existing Cloudflare state behavior remains unchanged. The reusable workflow rejects these inputs until its published action pin supports them; use the composite action directly at a supporting revision in the meantime.

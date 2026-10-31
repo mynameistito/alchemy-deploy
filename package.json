@@ -11,7 +11,8 @@
   "type": "module",
   "exports": {
     ".": "./src/domain/deployment.ts",
-    "./worker-preview-artifact": "./src/worker-preview-artifact.ts"
+    "./worker-preview-artifact": "./src/worker-preview-artifact.ts",
+    "./worker-preview-environment": "./src/worker-preview-environment.ts"
   },
   "scripts": {
     "check": "ultracite check",
@@ -30,6 +31,7 @@
     "@effect/platform-node": "4.0.6",
     "alchemy": "2.0.0-beta.84",
     "effect": "4.0.6",
+    "yaml": "2.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -42,8 +44,7 @@
     "oxfmt": "0.74.0",
     "oxlint": "1.89.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "ultracite": "8.1.0",
-    "yaml": "2.9.1"
+    "ultracite": "8.1.0"
   },
   "packageManager": "bun@1.4.2"
 }

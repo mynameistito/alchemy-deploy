@@ -26,7 +26,23 @@ inputs:
     default: false
     required: false
   worker-config:
-    description: Optional JSON environment bindings for the trusted Worker Preview stack
+    description: Optional JSON public environment values for the trusted Worker Preview stack
+    default: ""
+    required: false
+  worker-secrets:
+    description: Optional JSON object of preview-only secret string values
+    default: ""
+    required: false
+  preview-state-url:
+    description: Optional HTTPS root URL of a preprovisioned preview state backend
+    default: ""
+    required: false
+  preview-state-expected-origin:
+    description: Expected HTTPS origin of the preview state backend
+    default: ""
+    required: false
+  preview-state-token:
+    description: Bearer token for the preview state backend
     default: ""
     required: false
   preview-artifact:
@@ -86,6 +102,8 @@ runs:
         bun-version: 1.4.2
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -95,6 +113,8 @@ runs:
       working-directory: ${{ github.action_path }}
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -105,6 +125,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CI_WORKFLOW: ${{ inputs.ci-workflow }}
         DEPLOYMENT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
         EVENT_NAME: ${{ github.event_name }}
@@ -157,6 +179,8 @@ runs:
         bun-version: 1.4.2
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -168,6 +192,8 @@ runs:
         bun-version-file: package.json
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -177,6 +203,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -188,6 +216,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
       run: |
@@ -201,7 +231,10 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
+        ALCHEMY_WORKER_SECRETS: ${{ inputs.worker-secrets }}
         ALLOW_FORK_COMMITS: ${{ inputs.allow-fork-commits }}
         ALCHEMY_PREVIEW_ARTIFACT: ${{ runner.temp }}/alchemy-preview
         ALCHEMY_PREVIEW_ASSETS_DIRECTORY: ${{ inputs.preview-assets-directory }}
@@ -210,6 +243,9 @@ runs:
         ALCHEMY_PREVIEW_COMPATIBILITY_DATE: ${{ inputs.preview-compatibility-date }}
         ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS: ${{ inputs.preview-compatibility-flags }}
         ALCHEMY_ACTION_PATH: ${{ github.action_path }}
+        ALCHEMY_PREVIEW_STATE_URL: ${{ inputs.preview-state-url }}
+        ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN: ${{ inputs.preview-state-expected-origin }}
+        ALCHEMY_PREVIEW_STATE_TOKEN: ${{ inputs.preview-state-token }}
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
         DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deploy == 'true' && steps.resolve.outputs.deployment-sha || github.event.pull_request.head.sha }}
@@ -244,6 +280,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
@@ -255,6 +293,9 @@ runs:
         GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         ALCHEMY_ACTION_PATH: ${{ github.action_path }}
+        ALCHEMY_PREVIEW_STATE_URL: ${{ inputs.preview-state-url }}
+        ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN: ${{ inputs.preview-state-expected-origin }}
+        ALCHEMY_PREVIEW_STATE_TOKEN: ${{ inputs.preview-state-token }}
         ALCHEMY_PREVIEW_COMPATIBILITY_DATE: ${{ inputs.preview-compatibility-date }}
         ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS: ${{ inputs.preview-compatibility-flags }}
         PHASE: cleanup

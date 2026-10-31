@@ -68,6 +68,8 @@ const trustedPreviewCommand = (operation: "deploy" | "destroy"): string => {
   return `bun "$ALCHEMY_ACTION_PATH/node_modules/alchemy/bin/cli.js" ${operation} --config "$ALCHEMY_ACTION_PATH/src/worker-preview.run.ts" --stage "$STAGE" --yes`;
 };
 
+// The orchestration boundary collects all policy and reporting branches.
+// oxlint-disable-next-line complexity
 const main = async (): Promise<number> => {
   const phase = required("PHASE");
   const token = required("GITHUB_TOKEN");
@@ -121,6 +123,22 @@ const main = async (): Promise<number> => {
   const command: ConsumerCommand = {
     command: commandText,
     environment: {
+      ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN:
+        context.stage._tag === "preview"
+          ? (Bun.env.ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN ?? "")
+          : "",
+      ALCHEMY_PREVIEW_STATE_TOKEN:
+        context.stage._tag === "preview"
+          ? (Bun.env.ALCHEMY_PREVIEW_STATE_TOKEN ?? "")
+          : "",
+      ALCHEMY_PREVIEW_STATE_URL:
+        context.stage._tag === "preview"
+          ? (Bun.env.ALCHEMY_PREVIEW_STATE_URL ?? "")
+          : "",
+      ALCHEMY_WORKER_SECRETS:
+        context.stage._tag === "preview" && mode === "create"
+          ? (Bun.env.ALCHEMY_WORKER_SECRETS ?? "")
+          : "",
       STAGE: context.stage.value,
     },
     logPath:
