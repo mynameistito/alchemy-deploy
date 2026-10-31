@@ -13,6 +13,8 @@ test("consumer subprocess receives only the intended deployment credentials", as
     "OP_SERVICE_ACCOUNT_TOKEN",
     "GITHUB_TOKEN",
     "CLOUDFLARE_API_TOKEN",
+    "ALCHEMY_WORKER_SECRETS",
+    "INPUT_WORKER_SECRETS",
     "PHASE",
     "PATH",
   ] as const;
@@ -46,11 +48,13 @@ test("consumer subprocess receives only the intended deployment credentials", as
     Bun.env.OP_SERVICE_ACCOUNT_TOKEN = "synthetic-parent-bootstrap";
     Bun.env.GITHUB_TOKEN = "synthetic-workflow-token";
     Bun.env.CLOUDFLARE_API_TOKEN = "synthetic-cloudflare-token";
+    Bun.env.ALCHEMY_WORKER_SECRETS = "synthetic-preview-secret";
+    Bun.env.INPUT_WORKER_SECRETS = "synthetic-preview-secret";
     Bun.env.PHASE = "deploy";
 
     const result = await runConsumerCommand({
       command:
-        'test -z "$OP_SERVICE_ACCOUNT_TOKEN" && test -z "$GITHUB_TOKEN" && test "$CLOUDFLARE_API_TOKEN" = synthetic-cloudflare-token',
+        'test -z "$OP_SERVICE_ACCOUNT_TOKEN" && test -z "$GITHUB_TOKEN" && test -z "$ALCHEMY_WORKER_SECRETS" && test -z "$INPUT_WORKER_SECRETS" && test "$CLOUDFLARE_API_TOKEN" = synthetic-cloudflare-token',
       environment: {
         GITHUB_TOKEN: "synthetic-command-github",
         OP_SERVICE_ACCOUNT_TOKEN: "synthetic-command-bootstrap",
