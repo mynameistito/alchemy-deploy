@@ -19,8 +19,11 @@ const environmentFor = (command: ConsumerCommand) =>
     ALCHEMY_WORKER_SECRETS: command.environment.ALCHEMY_WORKER_SECRETS ?? "",
     CLOUDFLARE_ACCOUNT_ID: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     CLOUDFLARE_API_TOKEN: Bun.env.CLOUDFLARE_API_TOKEN ?? "",
+    GH_TOKEN: "",
     GITHUB_TOKEN: "",
+    "INPUT_WORKER-SECRETS": "",
     INPUT_WORKER_SECRETS: "",
+    OP_CONNECT_TOKEN: "",
     OP_SERVICE_ACCOUNT_TOKEN: "",
     STAGE: command.environment.STAGE ?? "",
   }) satisfies Record<string, string>;
