@@ -33,6 +33,18 @@ inputs:
     description: Optional JSON object of preview-only secret string values
     default: ""
     required: false
+  preview-state-url:
+    description: Optional HTTPS root URL of a preprovisioned preview state backend
+    default: ""
+    required: false
+  preview-state-expected-origin:
+    description: Expected HTTPS origin of the preview state backend
+    default: ""
+    required: false
+  preview-state-token:
+    description: Bearer token for the preview state backend
+    default: ""
+    required: false
   preview-artifact:
     description: Name of the credential-free CI artifact containing the built Worker bundle
     default: alchemy-worker
@@ -231,6 +243,9 @@ runs:
         ALCHEMY_PREVIEW_COMPATIBILITY_DATE: ${{ inputs.preview-compatibility-date }}
         ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS: ${{ inputs.preview-compatibility-flags }}
         ALCHEMY_ACTION_PATH: ${{ github.action_path }}
+        ALCHEMY_PREVIEW_STATE_URL: ${{ inputs.preview-state-url }}
+        ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN: ${{ inputs.preview-state-expected-origin }}
+        ALCHEMY_PREVIEW_STATE_TOKEN: ${{ inputs.preview-state-token }}
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
         DEPLOYMENT_SHA: ${{ steps.resolve.outputs.deploy == 'true' && steps.resolve.outputs.deployment-sha || github.event.pull_request.head.sha }}
@@ -278,6 +293,9 @@ runs:
         GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         ALCHEMY_ACTION_PATH: ${{ github.action_path }}
+        ALCHEMY_PREVIEW_STATE_URL: ${{ inputs.preview-state-url }}
+        ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN: ${{ inputs.preview-state-expected-origin }}
+        ALCHEMY_PREVIEW_STATE_TOKEN: ${{ inputs.preview-state-token }}
         ALCHEMY_PREVIEW_COMPATIBILITY_DATE: ${{ inputs.preview-compatibility-date }}
         ALCHEMY_PREVIEW_COMPATIBILITY_FLAGS: ${{ inputs.preview-compatibility-flags }}
         PHASE: cleanup

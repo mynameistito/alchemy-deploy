@@ -11,6 +11,9 @@ on:
       use-adopt: { default: false, required: false, type: boolean }
       worker-config: { default: "", required: false, type: string }
       worker-secrets: { default: "", required: false, type: string }
+      preview-state-url: { default: "", required: false, type: string }
+      preview-state-expected-origin:
+        { default: "", required: false, type: string }
       preview-artifact:
         { default: alchemy-worker, required: false, type: string }
       preview-entrypoint: { default: index.js, required: false, type: string }
@@ -37,6 +40,7 @@ on:
       CLOUDFLARE_API_TOKEN: { required: true }
       CLOUDFLARE_ACCOUNT_ID: { required: true }
       WORKER_SECRETS: { required: false }
+      PREVIEW_STATE_TOKEN: { required: false }
 
 permissions: {}
 
@@ -70,6 +74,17 @@ jobs:
         run: |
           if [ -n "$REQUESTED_INPUT" ] || [ -n "$REQUESTED_SECRET" ]; then
             echo '::error::Preview secrets require a published action release and updated reusable workflow pin.'
+            exit 1
+          fi
+      - name: Reject preview state until the action pin is updated
+        shell: bash
+        env:
+          STATE_URL: ${{ inputs.preview-state-url }}
+          STATE_ORIGIN: ${{ inputs.preview-state-expected-origin }}
+          STATE_TOKEN: ${{ secrets.PREVIEW_STATE_TOKEN }}
+        run: |
+          if [ -n "$STATE_URL" ] || [ -n "$STATE_ORIGIN" ] || [ -n "$STATE_TOKEN" ]; then
+            echo '::error::Preview state requires a published action release and updated reusable workflow pin.'
             exit 1
           fi
       - name: Run Alchemy deployment policy

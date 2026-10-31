@@ -114,7 +114,13 @@ const main = async (): Promise<number> => {
 
     const command: ConsumerCommand = {
       command: `bun "$ALCHEMY_ACTION_PATH/node_modules/alchemy/bin/cli.js" destroy --config "$ALCHEMY_ACTION_PATH/src/worker-preview.run.ts" --stage "$STAGE" --yes`,
-      environment: { STAGE: stage.value.value },
+      environment: {
+        ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN:
+          Bun.env.ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN ?? "",
+        ALCHEMY_PREVIEW_STATE_TOKEN: Bun.env.ALCHEMY_PREVIEW_STATE_TOKEN ?? "",
+        ALCHEMY_PREVIEW_STATE_URL: Bun.env.ALCHEMY_PREVIEW_STATE_URL ?? "",
+        STAGE: stage.value.value,
+      },
       logPath: `${logDirectory}/alchemy-${stage.value.value}.log`,
     };
 

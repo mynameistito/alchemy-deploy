@@ -18,6 +18,9 @@ test("consumer subprocess receives only the intended deployment credentials", as
     "ALCHEMY_WORKER_SECRETS",
     "INPUT_WORKER_SECRETS",
     "INPUT_WORKER-SECRETS",
+    "ALCHEMY_PREVIEW_STATE_TOKEN",
+    "INPUT_PREVIEW_STATE_TOKEN",
+    "INPUT_PREVIEW-STATE-TOKEN",
     "PHASE",
     "PATH",
   ] as const;
@@ -56,11 +59,14 @@ test("consumer subprocess receives only the intended deployment credentials", as
     Bun.env.ALCHEMY_WORKER_SECRETS = "synthetic-preview-secret";
     Bun.env.INPUT_WORKER_SECRETS = "synthetic-preview-secret";
     Bun.env["INPUT_WORKER-SECRETS"] = "synthetic-preview-secret";
+    Bun.env.ALCHEMY_PREVIEW_STATE_TOKEN = "synthetic-state-token";
+    Bun.env.INPUT_PREVIEW_STATE_TOKEN = "synthetic-state-token";
+    Bun.env["INPUT_PREVIEW-STATE-TOKEN"] = "synthetic-state-token";
     Bun.env.PHASE = "deploy";
 
     const result = await runConsumerCommand({
       command:
-        'test -z "$OP_SERVICE_ACCOUNT_TOKEN" && test -z "$OP_CONNECT_TOKEN" && test -z "$GITHUB_TOKEN" && test -z "$GH_TOKEN" && test -z "$ALCHEMY_WORKER_SECRETS" && test -z "$INPUT_WORKER_SECRETS" && test -z "$(printenv INPUT_WORKER-SECRETS)" && test "$CLOUDFLARE_API_TOKEN" = synthetic-cloudflare-token',
+        'test -z "$OP_SERVICE_ACCOUNT_TOKEN" && test -z "$OP_CONNECT_TOKEN" && test -z "$GITHUB_TOKEN" && test -z "$GH_TOKEN" && test -z "$ALCHEMY_WORKER_SECRETS" && test -z "$INPUT_WORKER_SECRETS" && test -z "$(printenv INPUT_WORKER-SECRETS)" && test -z "$ALCHEMY_PREVIEW_STATE_TOKEN" && test -z "$INPUT_PREVIEW_STATE_TOKEN" && test -z "$(printenv INPUT_PREVIEW-STATE-TOKEN)" && test "$CLOUDFLARE_API_TOKEN" = synthetic-cloudflare-token',
       environment: {
         GITHUB_TOKEN: "synthetic-command-github",
         OP_SERVICE_ACCOUNT_TOKEN: "synthetic-command-bootstrap",
@@ -69,6 +75,15 @@ test("consumer subprocess receives only the intended deployment credentials", as
     });
 
     expect(result).toEqual({ _tag: "ok", value: "success" });
+
+    const trusted = await runConsumerCommand({
+      command:
+        'test "$ALCHEMY_PREVIEW_STATE_TOKEN" = synthetic-state-token && test -z "$INPUT_PREVIEW_STATE_TOKEN" && test -z "$(printenv INPUT_PREVIEW-STATE-TOKEN)"',
+      environment: { ALCHEMY_PREVIEW_STATE_TOKEN: "synthetic-state-token" },
+      logPath: path.join(directory, "trusted.log").replaceAll("\\", "/"),
+    });
+
+    expect(trusted).toEqual({ _tag: "ok", value: "success" });
   } finally {
     for (const [index, name] of names.entries()) {
       const value = previous[index];

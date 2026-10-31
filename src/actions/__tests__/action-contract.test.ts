@@ -216,6 +216,9 @@ describe("composite action contract", () => {
       "preview-compatibility-date": { default: "", required: false },
       "preview-compatibility-flags": { default: "[]", required: false },
       "preview-entrypoint": { default: "index.js", required: false },
+      "preview-state-expected-origin": { default: "", required: false },
+      "preview-state-token": { default: "", required: false },
+      "preview-state-url": { default: "", required: false },
       "preview-url-pattern": {
         default: "https://{stage}-{worker}.*.workers.dev",
         required: false,
@@ -310,6 +313,22 @@ describe("composite action contract", () => {
     const steps = z.array(record).parse(deploy.steps);
     const actionStep = stepNamed(steps, "Run Alchemy deployment policy");
     const actionInputs = record.parse(actionStep.with);
+
+    const stateGuard = stepNamed(
+      steps,
+      "Reject preview state until the action pin is updated"
+    );
+
+    expect(
+      indexOfStep(steps, "Reject preview state until the action pin is updated")
+    ).toBeLessThan(indexOfStep(steps, "Run Alchemy deployment policy"));
+    expect(envFor(stateGuard)).toMatchObject({
+      STATE_ORIGIN: githubExpression("inputs.preview-state-expected-origin"),
+      STATE_TOKEN: githubExpression("secrets.PREVIEW_STATE_TOKEN"),
+      STATE_URL: githubExpression("inputs.preview-state-url"),
+    });
+    expect(String(stateGuard.run)).toContain("exit 1");
+    expect(actionInputs["preview-state-token"]).toBeUndefined();
 
     const secretGuard = stepNamed(
       steps,
@@ -440,6 +459,20 @@ describe("composite action contract", () => {
     const reconcileEnvironment = envFor(
       stepNamed(steps, "Run scheduled preview reconcile")
     );
+
+    for (const [key, input] of [
+      ["ALCHEMY_PREVIEW_STATE_URL", "preview-state-url"],
+      [
+        "ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN",
+        "preview-state-expected-origin",
+      ],
+      ["ALCHEMY_PREVIEW_STATE_TOKEN", "preview-state-token"],
+    ] as const) {
+      expect(environment[key]).toBe(githubExpression(`inputs.${input}`));
+      expect(reconcileEnvironment[key]).toBe(
+        githubExpression(`inputs.${input}`)
+      );
+    }
 
     expect(reconcileEnvironment.ALCHEMY_PREVIEW_COMPATIBILITY_DATE).toContain(
       "inputs.preview-compatibility-date"

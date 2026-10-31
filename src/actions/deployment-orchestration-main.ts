@@ -123,6 +123,18 @@ const main = async (): Promise<number> => {
   const command: ConsumerCommand = {
     command: commandText,
     environment: {
+      ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN:
+        context.stage._tag === "preview"
+          ? (Bun.env.ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN ?? "")
+          : "",
+      ALCHEMY_PREVIEW_STATE_TOKEN:
+        context.stage._tag === "preview"
+          ? (Bun.env.ALCHEMY_PREVIEW_STATE_TOKEN ?? "")
+          : "",
+      ALCHEMY_PREVIEW_STATE_URL:
+        context.stage._tag === "preview"
+          ? (Bun.env.ALCHEMY_PREVIEW_STATE_URL ?? "")
+          : "",
       ALCHEMY_WORKER_SECRETS:
         context.stage._tag === "preview" && mode === "create"
           ? (Bun.env.ALCHEMY_WORKER_SECRETS ?? "")

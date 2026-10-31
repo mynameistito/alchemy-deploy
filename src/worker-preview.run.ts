@@ -6,15 +6,19 @@ import {
 } from "@alchemy.run/cloudflare";
 import { Worker } from "@alchemy.run/cloudflare/Workers";
 import type { AssetsProps } from "@alchemy.run/cloudflare/Workers";
-import { Stack } from "alchemy";
+import { Stack, Stage as AlchemyStage } from "alchemy";
 import {
   parseWorkerPreviewAssetsConfig,
   resolveWorkerPreviewAssetsDirectory,
   resolveWorkerPreviewEntrypoint,
 } from "alchemy-deploy/worker-preview-artifact";
 import { parsePreviewEnvironment } from "alchemy-deploy/worker-preview-environment";
+import { Layer } from "effect";
 import { gen as effectGen, promise as effectPromise } from "effect/Effect";
+import { layer as fetchHttpClientLayer } from "effect/http/FetchHttpClient";
 import { z } from "zod";
+
+import { preprovisionedState } from "@/preprovisioned-state.ts";
 
 interface WorkerCompatibility {
   date?: string;
@@ -116,6 +120,8 @@ const deploymentAnnotation =
       };
 
 const workerPreviewStack = function* workerPreviewStack() {
+  const stage = yield* AlchemyStage;
+
   const preview = yield* Worker("WorkerPreview", {
     assets: yield* effectPromise(artifactAssets),
     bundle: false,
@@ -123,7 +129,7 @@ const workerPreviewStack = function* workerPreviewStack() {
     env: previewEnvironment(),
     main: yield* effectPromise(artifactEntrypoint),
     preview: {
-      name: required("STAGE"),
+      name: stage,
       of: required("WORKER_NAME"),
       ...deploymentAnnotation,
     },
@@ -134,6 +140,15 @@ const workerPreviewStack = function* workerPreviewStack() {
 
 export default Stack(
   `alchemy-deploy-${required("REPOSITORY_ID")}-${required("WORKER_NAME")}`,
-  { providers: cloudflareProviders(), state: cloudflareState() },
+  {
+    providers: cloudflareProviders(),
+    state: [
+      Bun.env.ALCHEMY_PREVIEW_STATE_URL,
+      Bun.env.ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN,
+      Bun.env.ALCHEMY_PREVIEW_STATE_TOKEN,
+    ].some((value) => value !== undefined && value !== "")
+      ? preprovisionedState(Bun.env).pipe(Layer.provide(fetchHttpClientLayer))
+      : cloudflareState(),
+  },
   effectGen(workerPreviewStack)
 );

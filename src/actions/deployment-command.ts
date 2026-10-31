@@ -15,12 +15,24 @@ export const required = (name: string): Result<string, Error> => {
 const environmentFor = (command: ConsumerCommand) =>
   ({
     ...command.environment,
+    ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN:
+      command.environment.ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN ?? "",
+    ALCHEMY_PREVIEW_STATE_TOKEN:
+      command.environment.ALCHEMY_PREVIEW_STATE_TOKEN ?? "",
+    ALCHEMY_PREVIEW_STATE_URL:
+      command.environment.ALCHEMY_PREVIEW_STATE_URL ?? "",
     ALCHEMY_WORKER_CONFIG: Bun.env.ALCHEMY_WORKER_CONFIG ?? "",
     ALCHEMY_WORKER_SECRETS: command.environment.ALCHEMY_WORKER_SECRETS ?? "",
     CLOUDFLARE_ACCOUNT_ID: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     CLOUDFLARE_API_TOKEN: Bun.env.CLOUDFLARE_API_TOKEN ?? "",
     GH_TOKEN: "",
     GITHUB_TOKEN: "",
+    "INPUT_PREVIEW-STATE-EXPECTED-ORIGIN": "",
+    "INPUT_PREVIEW-STATE-TOKEN": "",
+    "INPUT_PREVIEW-STATE-URL": "",
+    INPUT_PREVIEW_STATE_EXPECTED_ORIGIN: "",
+    INPUT_PREVIEW_STATE_TOKEN: "",
+    INPUT_PREVIEW_STATE_URL: "",
     "INPUT_WORKER-SECRETS": "",
     INPUT_WORKER_SECRETS: "",
     OP_CONNECT_TOKEN: "",
