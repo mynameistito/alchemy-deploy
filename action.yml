@@ -26,7 +26,11 @@ inputs:
     default: false
     required: false
   worker-config:
-    description: Optional JSON environment bindings for the trusted Worker Preview stack
+    description: Optional JSON public environment values for the trusted Worker Preview stack
+    default: ""
+    required: false
+  worker-secrets:
+    description: Optional JSON object of preview-only secret string values
     default: ""
     required: false
   preview-artifact:
@@ -202,6 +206,7 @@ runs:
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
+        ALCHEMY_WORKER_SECRETS: ${{ inputs.worker-secrets }}
         ALLOW_FORK_COMMITS: ${{ inputs.allow-fork-commits }}
         ALCHEMY_PREVIEW_ARTIFACT: ${{ runner.temp }}/alchemy-preview
         ALCHEMY_PREVIEW_ASSETS_DIRECTORY: ${{ inputs.preview-assets-directory }}

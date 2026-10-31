@@ -16,6 +16,7 @@ const environmentFor = (command: ConsumerCommand) =>
   ({
     ...command.environment,
     ALCHEMY_WORKER_CONFIG: Bun.env.ALCHEMY_WORKER_CONFIG ?? "",
+    ALCHEMY_WORKER_SECRETS: command.environment.ALCHEMY_WORKER_SECRETS ?? "",
     CLOUDFLARE_ACCOUNT_ID: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     CLOUDFLARE_API_TOKEN: Bun.env.CLOUDFLARE_API_TOKEN ?? "",
     GITHUB_TOKEN: "",

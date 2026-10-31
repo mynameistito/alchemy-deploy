@@ -12,37 +12,14 @@ import {
   resolveWorkerPreviewAssetsDirectory,
   resolveWorkerPreviewEntrypoint,
 } from "alchemy-deploy/worker-preview-artifact";
+import { parsePreviewEnvironment } from "alchemy-deploy/worker-preview-environment";
 import { gen as effectGen, promise as effectPromise } from "effect/Effect";
 import { z } from "zod";
-
-type JsonValue =
-  | boolean
-  | JsonValue[]
-  | { readonly [key: string]: JsonValue }
-  | null
-  | number
-  | string;
 
 interface WorkerCompatibility {
   date?: string;
   flags?: string[];
 }
-
-const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.boolean(),
-    z.number(),
-    z.string(),
-    z.null(),
-    z.array(jsonValueSchema),
-    z.record(z.string(), jsonValueSchema),
-  ])
-);
-
-const workerEnvironmentSchema: z.ZodType<Record<string, JsonValue>> = z.record(
-  z.string(),
-  jsonValueSchema
-);
 
 const required = (name: string): string => {
   const value = Bun.env[name]?.trim();
@@ -89,23 +66,17 @@ const artifactAssets = async (): Promise<AssetsProps | undefined> => {
   };
 };
 
-const parseWorkerEnvironment = (): Record<string, JsonValue> => {
-  const input = Bun.env.ALCHEMY_WORKER_CONFIG?.trim();
+const previewEnvironment = () => {
+  const result = parsePreviewEnvironment(
+    Bun.env.ALCHEMY_WORKER_CONFIG ?? "",
+    Bun.env.ALCHEMY_WORKER_SECRETS ?? ""
+  );
 
-  if (!input) {
-    return {};
+  if (result._tag === "err") {
+    throw result.error;
   }
 
-  const parsed: unknown = JSON.parse(input);
-  const result = workerEnvironmentSchema.safeParse(parsed);
-
-  if (!result.success) {
-    throw new Error(
-      "ALCHEMY_WORKER_CONFIG must be a JSON object of Worker bindings"
-    );
-  }
-
-  return result.data;
+  return result.value;
 };
 
 const previewCompatibility = () => {
@@ -149,7 +120,7 @@ const workerPreviewStack = function* workerPreviewStack() {
     assets: yield* effectPromise(artifactAssets),
     bundle: false,
     compatibility: previewCompatibility(),
-    env: parseWorkerEnvironment(),
+    env: previewEnvironment(),
     main: yield* effectPromise(artifactEntrypoint),
     preview: {
       name: required("STAGE"),

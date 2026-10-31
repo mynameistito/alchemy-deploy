@@ -227,6 +227,7 @@ describe("composite action contract", () => {
       "use-adopt": { default: false, required: false },
       "worker-config": { default: "", required: false },
       "worker-name": { required: true },
+      "worker-secrets": { default: "", required: false },
     } as const;
 
     for (const [name, contract] of Object.entries(expectedInputs)) {
@@ -309,6 +310,30 @@ describe("composite action contract", () => {
     const steps = z.array(record).parse(deploy.steps);
     const actionStep = stepNamed(steps, "Run Alchemy deployment policy");
     const actionInputs = record.parse(actionStep.with);
+
+    const secretGuard = stepNamed(
+      steps,
+      "Reject preview secrets until the action pin is updated"
+    );
+
+    expect(
+      indexOfStep(
+        steps,
+        "Reject preview secrets until the action pin is updated"
+      )
+    ).toBeLessThan(indexOfStep(steps, "Run Alchemy deployment policy"));
+    expect(envFor(secretGuard)).toMatchObject({
+      REQUESTED_INPUT: githubExpression("inputs.worker-secrets"),
+      REQUESTED_SECRET: githubExpression("secrets.WORKER_SECRETS"),
+    });
+    expect(String(secretGuard.run)).toContain("exit 1");
+
+    expect(inputs["worker-secrets"]).toMatchObject({
+      default: "",
+      required: false,
+      type: "string",
+    });
+    expect(actionInputs["worker-secrets"]).toContain("secrets.WORKER_SECRETS");
 
     expect(inputs["preview-assets-directory"]).toMatchObject({
       default: "",

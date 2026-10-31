@@ -89,7 +89,8 @@ Add these repository secrets:
 | `production-stage` | No | `prod` | Alchemy stage reserved for production. |
 | `use-adopt` | No | `false` | Append `--adopt` to the deploy command. |
 | `allow-fork-commits` | No | `false` | Permit approved fork previews only from a separately protected deployment job. Fork commits remain denied by default. |
-| `worker-config` | No |  | Optional JSON object of environment bindings for the trusted Preview stack. |
+| `worker-config` | No |  | Optional JSON object of **public** Preview environment values. Strings become plain text; other JSON values remain JSON. Never put secrets here. |
+| `worker-secrets` | No |  | Optional JSON object mapping Preview environment names to secret strings. Values become Cloudflare `secret_text` bindings. |
 | `preview-artifact` | No | `alchemy-worker` | CI artifact name containing the complete Worker bundle. |
 | `preview-entrypoint` | No | `index.js` | Entrypoint path relative to the artifact root; it must resolve to a regular file inside the artifact. |
 | `preview-assets-directory` | No |  | Optional static asset directory relative to the artifact root; it must resolve to a directory inside the artifact. |
@@ -168,6 +169,18 @@ The reconcile finds this action's Preview records, resolves each pull request, a
 The PR artifact is untrusted input. The trusted action validates that the selected entrypoint and optional assets directory remain inside the artifact, and Alchemy reads the bundle with `bundle: false` without evaluating it in the credentialed deployment process. Keep CI builds credential-free. The deployed Worker runs on Cloudflare, so configure its bindings deliberately. Worker Preview service bindings may still target production services; use a separate Alchemy stage when the whole infrastructure environment must be isolated.
 
 ## Worker Preview semantics
+
+Supply distinct development credentials that are safe for the Preview code to use, not production credentials. For the composite action, store a JSON object such as `{"SESSION_SECRET":"<preview-development-value>"}` as the GitHub secret `PREVIEW_WORKER_SECRETS`, then reference it by name:
+
+```yaml
+with:
+  worker-config: '{"APP_ENV":"preview"}'
+  worker-secrets: ${{ secrets.PREVIEW_WORKER_SECRETS }}
+```
+
+The reusable workflow currently pins v3.1.8, which cannot accept Preview secrets. It rejects a nonempty `worker-secrets` input or `WORKER_SECRETS` secret until a published release is pinned and the guard is removed. Use the composite action pinned to a release containing this feature in the meantime. Empty inputs preserve the existing behavior. Both maps must be JSON objects with unique, non-overlapping identifier keys (letters, digits and underscores, starting with a letter or underscore); Alchemy runtime and prototype-related names are reserved. Secret values must be strings. Configure GitHub secrets and their scope outside this action; no 1Password authentication is required.
+
+These inputs support ordinary JSON values and secret strings only. JSON objects resembling D1, KV, Durable Object, service, or other native binding descriptors remain JSON values; they do not create native bindings. Use a separate trusted infrastructure configuration when those resources are needed. The action does not establish whether Cloudflare implicitly inherits omitted parent bindings; verify Preview isolation and access controls with non-sensitive fixtures before allowing untrusted code to run.
 
 This integration uses Alchemy `2.0.0-beta.84`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). Branch/PR Previews are first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
 
