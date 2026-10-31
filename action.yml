@@ -90,6 +90,8 @@ runs:
         bun-version: 1.4.2
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -99,6 +101,8 @@ runs:
       working-directory: ${{ github.action_path }}
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -109,6 +113,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CI_WORKFLOW: ${{ inputs.ci-workflow }}
         DEPLOYMENT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
         EVENT_NAME: ${{ github.event_name }}
@@ -161,6 +167,8 @@ runs:
         bun-version: 1.4.2
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -172,6 +180,8 @@ runs:
         bun-version-file: package.json
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -181,6 +191,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ""
         CLOUDFLARE_API_TOKEN: ""
         GITHUB_TOKEN: ""
@@ -192,6 +204,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
       run: |
@@ -205,6 +219,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
         ALCHEMY_WORKER_SECRETS: ${{ inputs.worker-secrets }}
         ALLOW_FORK_COMMITS: ${{ inputs.allow-fork-commits }}
@@ -249,6 +265,8 @@ runs:
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ""
+        OP_CONNECT_TOKEN: ""
+        GH_TOKEN: ""
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
         CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
