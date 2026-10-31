@@ -69,7 +69,7 @@ const trustedPreviewCommand = (operation: "deploy" | "destroy"): string => {
 };
 
 // The orchestration boundary collects all policy and reporting branches.
-// oxlint-disable-next-line complexity
+// oxlint-disable-next-line complexity, sonarjs/cognitive-complexity
 const main = async (): Promise<number> => {
   const phase = required("PHASE");
   const token = required("GITHUB_TOKEN");
@@ -135,9 +135,17 @@ const main = async (): Promise<number> => {
         context.stage._tag === "preview"
           ? (Bun.env.ALCHEMY_PREVIEW_STATE_URL ?? "")
           : "",
+      ALCHEMY_WORKER_RATE_LIMIT_BINDINGS:
+        context.stage._tag === "preview" && mode === "create"
+          ? (Bun.env.ALCHEMY_WORKER_RATE_LIMIT_BINDINGS ?? "")
+          : "",
       ALCHEMY_WORKER_SECRETS:
         context.stage._tag === "preview" && mode === "create"
           ? (Bun.env.ALCHEMY_WORKER_SECRETS ?? "")
+          : "",
+      ALCHEMY_WORKER_STATE_BINDINGS:
+        context.stage._tag === "preview" && mode === "create"
+          ? (Bun.env.ALCHEMY_WORKER_STATE_BINDINGS ?? "")
           : "",
       STAGE: context.stage.value,
     },

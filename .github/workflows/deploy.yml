@@ -11,6 +11,8 @@ on:
       use-adopt: { default: false, required: false, type: boolean }
       worker-config: { default: "", required: false, type: string }
       worker-secrets: { default: "", required: false, type: string }
+      worker-rate-limit-bindings: { default: "", required: false, type: string }
+      worker-state-bindings: { default: "", required: false, type: string }
       preview-state-url: { default: "", required: false, type: string }
       preview-state-expected-origin:
         { default: "", required: false, type: string }
@@ -79,12 +81,22 @@ jobs:
       - name: Reject preview state until the action pin is updated
         shell: bash
         env:
+          STATE_BINDINGS: ${{ inputs.worker-state-bindings }}
           STATE_URL: ${{ inputs.preview-state-url }}
           STATE_ORIGIN: ${{ inputs.preview-state-expected-origin }}
           STATE_TOKEN: ${{ secrets.PREVIEW_STATE_TOKEN }}
         run: |
-          if [ -n "$STATE_URL" ] || [ -n "$STATE_ORIGIN" ] || [ -n "$STATE_TOKEN" ]; then
+          if [ -n "$STATE_BINDINGS" ] || [ -n "$STATE_URL" ] || [ -n "$STATE_ORIGIN" ] || [ -n "$STATE_TOKEN" ]; then
             echo '::error::Preview state requires a published action release and updated reusable workflow pin.'
+            exit 1
+          fi
+      - name: Reject preview rate limits until the action pin is updated
+        shell: bash
+        env:
+          RATE_LIMIT_BINDINGS: ${{ inputs.worker-rate-limit-bindings }}
+        run: |
+          if [ -n "$RATE_LIMIT_BINDINGS" ]; then
+            echo '::error::Preview rate limits require a published action release and updated reusable workflow pin.'
             exit 1
           fi
       - name: Run Alchemy deployment policy

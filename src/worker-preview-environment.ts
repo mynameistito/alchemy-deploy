@@ -38,7 +38,10 @@ const reservedNames = new Set([
   "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
 ]);
 
-const parse = (input: string) => {
+export const isPreviewBindingName = (name: string) =>
+  bindingName.test(name) && !reservedNames.has(name);
+
+export const parsePreviewJson = (input: string) => {
   if (!input.trim()) {
     return {};
   }
@@ -62,14 +65,14 @@ export const parsePreviewEnvironment = (
   secretInput: string
 ) => {
   try {
-    const publicValues = publicSchema.safeParse(parse(publicInput));
-    const secrets = secretSchema.safeParse(parse(secretInput));
+    const publicValues = publicSchema.safeParse(parsePreviewJson(publicInput));
+    const secrets = secretSchema.safeParse(parsePreviewJson(secretInput));
 
     if (
       !publicValues.success ||
       !secrets.success ||
       [...Object.keys(publicValues.data), ...Object.keys(secrets.data)].some(
-        (key) => !bindingName.test(key) || reservedNames.has(key)
+        (key) => !isPreviewBindingName(key)
       ) ||
       Object.keys(secrets.data).some((key) =>
         Object.hasOwn(publicValues.data, key)

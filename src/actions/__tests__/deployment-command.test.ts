@@ -16,6 +16,12 @@ test("consumer subprocess receives only the intended deployment credentials", as
     "OP_CONNECT_TOKEN",
     "CLOUDFLARE_API_TOKEN",
     "ALCHEMY_WORKER_SECRETS",
+    "ALCHEMY_WORKER_RATE_LIMIT_BINDINGS",
+    "INPUT_WORKER_RATE_LIMIT_BINDINGS",
+    "INPUT_WORKER-RATE-LIMIT-BINDINGS",
+    "ALCHEMY_WORKER_STATE_BINDINGS",
+    "INPUT_WORKER_STATE_BINDINGS",
+    "INPUT_WORKER-STATE-BINDINGS",
     "INPUT_WORKER_SECRETS",
     "INPUT_WORKER-SECRETS",
     "ALCHEMY_PREVIEW_STATE_TOKEN",
@@ -56,6 +62,12 @@ test("consumer subprocess receives only the intended deployment credentials", as
     Bun.env.GH_TOKEN = "synthetic-alternate-github-token";
     Bun.env.OP_CONNECT_TOKEN = "synthetic-connect-bootstrap";
     Bun.env.CLOUDFLARE_API_TOKEN = "synthetic-cloudflare-token";
+    Bun.env.ALCHEMY_WORKER_RATE_LIMIT_BINDINGS = "synthetic-parent";
+    Bun.env.INPUT_WORKER_RATE_LIMIT_BINDINGS = "synthetic-parent";
+    Bun.env["INPUT_WORKER-RATE-LIMIT-BINDINGS"] = "synthetic-parent";
+    Bun.env.ALCHEMY_WORKER_STATE_BINDINGS = "synthetic-parent-binding";
+    Bun.env.INPUT_WORKER_STATE_BINDINGS = "synthetic-parent-binding";
+    Bun.env["INPUT_WORKER-STATE-BINDINGS"] = "synthetic-parent-binding";
     Bun.env.ALCHEMY_WORKER_SECRETS = "synthetic-preview-secret";
     Bun.env.INPUT_WORKER_SECRETS = "synthetic-preview-secret";
     Bun.env["INPUT_WORKER-SECRETS"] = "synthetic-preview-secret";
@@ -66,7 +78,7 @@ test("consumer subprocess receives only the intended deployment credentials", as
 
     const result = await runConsumerCommand({
       command:
-        'test -z "$OP_SERVICE_ACCOUNT_TOKEN" && test -z "$OP_CONNECT_TOKEN" && test -z "$GITHUB_TOKEN" && test -z "$GH_TOKEN" && test -z "$ALCHEMY_WORKER_SECRETS" && test -z "$INPUT_WORKER_SECRETS" && test -z "$(printenv INPUT_WORKER-SECRETS)" && test -z "$ALCHEMY_PREVIEW_STATE_TOKEN" && test -z "$INPUT_PREVIEW_STATE_TOKEN" && test -z "$(printenv INPUT_PREVIEW-STATE-TOKEN)" && test "$CLOUDFLARE_API_TOKEN" = synthetic-cloudflare-token',
+        'test -z "$ALCHEMY_WORKER_RATE_LIMIT_BINDINGS" && test -z "$INPUT_WORKER_RATE_LIMIT_BINDINGS" && test -z "$(printenv INPUT_WORKER-RATE-LIMIT-BINDINGS)" && test -z "$OP_SERVICE_ACCOUNT_TOKEN" && test -z "$OP_CONNECT_TOKEN" && test -z "$GITHUB_TOKEN" && test -z "$GH_TOKEN" && test -z "$ALCHEMY_WORKER_STATE_BINDINGS" && test -z "$INPUT_WORKER_STATE_BINDINGS" && test -z "$(printenv INPUT_WORKER-STATE-BINDINGS)" && test -z "$ALCHEMY_WORKER_SECRETS" && test -z "$INPUT_WORKER_SECRETS" && test -z "$(printenv INPUT_WORKER-SECRETS)" && test -z "$ALCHEMY_PREVIEW_STATE_TOKEN" && test -z "$INPUT_PREVIEW_STATE_TOKEN" && test -z "$(printenv INPUT_PREVIEW-STATE-TOKEN)" && test "$CLOUDFLARE_API_TOKEN" = synthetic-cloudflare-token',
       environment: {
         GITHUB_TOKEN: "synthetic-command-github",
         OP_SERVICE_ACCOUNT_TOKEN: "synthetic-command-bootstrap",
@@ -78,8 +90,12 @@ test("consumer subprocess receives only the intended deployment credentials", as
 
     const trusted = await runConsumerCommand({
       command:
-        'test "$ALCHEMY_PREVIEW_STATE_TOKEN" = synthetic-state-token && test -z "$INPUT_PREVIEW_STATE_TOKEN" && test -z "$(printenv INPUT_PREVIEW-STATE-TOKEN)"',
-      environment: { ALCHEMY_PREVIEW_STATE_TOKEN: "synthetic-state-token" },
+        'test "$ALCHEMY_WORKER_RATE_LIMIT_BINDINGS" = synthetic-rate-limit && test -z "$INPUT_WORKER_RATE_LIMIT_BINDINGS" && test -z "$(printenv INPUT_WORKER-RATE-LIMIT-BINDINGS)" && test "$ALCHEMY_WORKER_STATE_BINDINGS" = synthetic-trusted-binding && test -z "$INPUT_WORKER_STATE_BINDINGS" && test -z "$(printenv INPUT_WORKER-STATE-BINDINGS)" && test "$ALCHEMY_PREVIEW_STATE_TOKEN" = synthetic-state-token && test -z "$INPUT_PREVIEW_STATE_TOKEN" && test -z "$(printenv INPUT_PREVIEW-STATE-TOKEN)"',
+      environment: {
+        ALCHEMY_PREVIEW_STATE_TOKEN: "synthetic-state-token",
+        ALCHEMY_WORKER_RATE_LIMIT_BINDINGS: "synthetic-rate-limit",
+        ALCHEMY_WORKER_STATE_BINDINGS: "synthetic-trusted-binding",
+      },
       logPath: path.join(directory, "trusted.log").replaceAll("\\", "/"),
     });
 

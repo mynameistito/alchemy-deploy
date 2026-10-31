@@ -125,3 +125,87 @@ test("a stalled backend times out with a generic error", async () => {
     "Preprovisioned state backend unavailable or incompatible"
   );
 }, 15_000);
+
+test("native references use actual stage and cache validated HTTP attributes", async () => {
+  const account = "a".repeat(32);
+
+  const environment = {
+    ...env,
+    ALCHEMY_WORKER_STATE_BINDINGS: JSON.stringify({
+      CACHE: { id: "kv", stack: "isolated", stage: "pr-1", type: "kv" },
+    }),
+    CLOUDFLARE_ACCOUNT_ID: account,
+    REPOSITORY_ID: "123",
+    WORKER_NAME: "app",
+  };
+
+  const requests: string[] = [];
+
+  const record = {
+    attr: {
+      accountId: account,
+      extra: { mutable: true },
+      namespaceId: "b".repeat(32),
+    },
+    fqn: "kv",
+    logicalId: "kv",
+    resourceType: "Cloudflare.KV.Namespace",
+    status: "created",
+  };
+
+  const handler = async (input: Parameters<typeof fetch>[0]) => {
+    const path = new URL(String(input)).pathname;
+    requests.push(path);
+
+    if (path === "/version") {
+      return Response.json({ version: 7 });
+    }
+
+    if (path === "/state/stacks") {
+      return Response.json(["isolated"]);
+    }
+
+    if (path === "/state/stacks/isolated/stages/pr-1/resources/kv") {
+      return Response.json(record);
+    }
+
+    return new Response(null, { status: 404 });
+  };
+
+  const program = Effect.gen(function* program() {
+    const getState = yield* State;
+    const state = yield* getState;
+    record.attr.namespaceId = "c".repeat(32);
+
+    return yield* state.get({ fqn: "kv", stack: "isolated", stage: "pr-1" });
+  });
+
+  const execute = (stage: string, settings = environment) =>
+    Effect.runPromise(
+      program.pipe(
+        Effect.provide(
+          preprovisionedState(settings, stage).pipe(
+            Layer.provide(FetchHttpClient.layer)
+          )
+        ),
+        Effect.provideService(FetchHttpClient.Fetch, handler as typeof fetch)
+      )
+    );
+
+  const result = await execute("pr-1");
+  expect(result && "attr" in result && result.attr).toEqual({
+    accountId: account,
+    namespaceId: "b".repeat(32),
+  });
+  expect(requests).toEqual([
+    "/version",
+    "/state/stacks",
+    "/state/stacks/isolated/stages/pr-1/resources/kv",
+  ]);
+  await expect(execute("pr-2")).rejects.toThrow();
+  const before = requests.length;
+  await expect(
+    execute("pr-1", { ...environment, ALCHEMY_PREVIEW_STATE_TOKEN: "" })
+  ).rejects.toThrow();
+  expect(requests).toHaveLength(before);
+});

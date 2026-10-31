@@ -13,12 +13,17 @@ import {
   resolveWorkerPreviewEntrypoint,
 } from "alchemy-deploy/worker-preview-artifact";
 import { parsePreviewEnvironment } from "alchemy-deploy/worker-preview-environment";
-import { Layer } from "effect";
+import { Effect, Layer } from "effect";
 import { gen as effectGen, promise as effectPromise } from "effect/Effect";
 import { layer as fetchHttpClientLayer } from "effect/http/FetchHttpClient";
 import { z } from "zod";
 
 import { preprovisionedState } from "@/preprovisioned-state.ts";
+import { parseRateLimitBindings } from "@/worker-rate-limit-bindings.ts";
+import {
+  nativeReferenceBindings,
+  parseNativeReferencePolicy,
+} from "@/worker-state-bindings.ts";
 
 interface WorkerCompatibility {
   date?: string;
@@ -122,11 +127,27 @@ const deploymentAnnotation =
 const workerPreviewStack = function* workerPreviewStack() {
   const stage = yield* AlchemyStage;
 
+  const policy = parseNativeReferencePolicy(Bun.env, stage);
+
+  if (policy._tag === "err") {
+    throw policy.error;
+  }
+
+  const rateLimits = parseRateLimitBindings(Bun.env, stage);
+
+  if (rateLimits._tag === "err") {
+    throw rateLimits.error;
+  }
+
+  const nativeBindings = policy.value
+    ? yield* nativeReferenceBindings(policy.value)
+    : {};
+
   const preview = yield* Worker("WorkerPreview", {
     assets: yield* effectPromise(artifactAssets),
     bundle: false,
     compatibility: previewCompatibility(),
-    env: previewEnvironment(),
+    env: { ...previewEnvironment(), ...nativeBindings, ...rateLimits.value },
     main: yield* effectPromise(artifactEntrypoint),
     preview: {
       name: stage,
@@ -143,11 +164,16 @@ export default Stack(
   {
     providers: cloudflareProviders(),
     state: [
+      Bun.env.ALCHEMY_WORKER_STATE_BINDINGS,
       Bun.env.ALCHEMY_PREVIEW_STATE_URL,
       Bun.env.ALCHEMY_PREVIEW_STATE_EXPECTED_ORIGIN,
       Bun.env.ALCHEMY_PREVIEW_STATE_TOKEN,
     ].some((value) => value !== undefined && value !== "")
-      ? preprovisionedState(Bun.env).pipe(Layer.provide(fetchHttpClientLayer))
+      ? Layer.unwrap(
+          AlchemyStage.pipe(
+            Effect.map((stage) => preprovisionedState(Bun.env, stage))
+          )
+        ).pipe(Layer.provide(fetchHttpClientLayer))
       : cloudflareState(),
   },
   effectGen(workerPreviewStack)
