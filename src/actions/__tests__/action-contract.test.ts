@@ -314,39 +314,21 @@ describe("composite action contract", () => {
     const actionStep = stepNamed(steps, "Run Alchemy deployment policy");
     const actionInputs = record.parse(actionStep.with);
 
-    const stateGuard = stepNamed(
-      steps,
-      "Reject preview state until the action pin is updated"
+    expect(actionStep.uses).toBe(
+      "mynameistito/alchemy-deploy@4e29a36d61cf8cc4277bdcd35d7b3eff13150b38"
     );
-
-    expect(
-      indexOfStep(steps, "Reject preview state until the action pin is updated")
-    ).toBeLessThan(indexOfStep(steps, "Run Alchemy deployment policy"));
-    expect(envFor(stateGuard)).toMatchObject({
-      STATE_ORIGIN: githubExpression("inputs.preview-state-expected-origin"),
-      STATE_TOKEN: githubExpression("secrets.PREVIEW_STATE_TOKEN"),
-      STATE_URL: githubExpression("inputs.preview-state-url"),
-    });
-    expect(String(stateGuard.run)).toContain("exit 1");
-    expect(actionInputs["preview-state-token"]).toBeUndefined();
-
-    const secretGuard = stepNamed(
-      steps,
-      "Reject preview secrets until the action pin is updated"
+    expect(steps).toHaveLength(1);
+    for (const name of [
+      "worker-rate-limit-bindings",
+      "worker-state-bindings",
+      "preview-state-url",
+      "preview-state-expected-origin",
+    ]) {
+      expect(actionInputs[name]).toBe(githubExpression(`inputs.${name}`));
+    }
+    expect(actionInputs["preview-state-token"]).toBe(
+      githubExpression("secrets.PREVIEW_STATE_TOKEN")
     );
-
-    expect(
-      indexOfStep(
-        steps,
-        "Reject preview secrets until the action pin is updated"
-      )
-    ).toBeLessThan(indexOfStep(steps, "Run Alchemy deployment policy"));
-    expect(envFor(secretGuard)).toMatchObject({
-      REQUESTED_INPUT: githubExpression("inputs.worker-secrets"),
-      REQUESTED_SECRET: githubExpression("secrets.WORKER_SECRETS"),
-    });
-    expect(String(secretGuard.run)).toContain("exit 1");
-
     expect(inputs["worker-secrets"]).toMatchObject({
       default: "",
       required: false,

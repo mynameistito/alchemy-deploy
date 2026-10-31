@@ -68,40 +68,9 @@ jobs:
       deployments: write
       pull-requests: write
     steps:
-      - name: Reject preview secrets until the action pin is updated
-        shell: bash
-        env:
-          REQUESTED_INPUT: ${{ inputs.worker-secrets }}
-          REQUESTED_SECRET: ${{ secrets.WORKER_SECRETS }}
-        run: |
-          if [ -n "$REQUESTED_INPUT" ] || [ -n "$REQUESTED_SECRET" ]; then
-            echo '::error::Preview secrets require a published action release and updated reusable workflow pin.'
-            exit 1
-          fi
-      - name: Reject preview state until the action pin is updated
-        shell: bash
-        env:
-          STATE_BINDINGS: ${{ inputs.worker-state-bindings }}
-          STATE_URL: ${{ inputs.preview-state-url }}
-          STATE_ORIGIN: ${{ inputs.preview-state-expected-origin }}
-          STATE_TOKEN: ${{ secrets.PREVIEW_STATE_TOKEN }}
-        run: |
-          if [ -n "$STATE_BINDINGS" ] || [ -n "$STATE_URL" ] || [ -n "$STATE_ORIGIN" ] || [ -n "$STATE_TOKEN" ]; then
-            echo '::error::Preview state requires a published action release and updated reusable workflow pin.'
-            exit 1
-          fi
-      - name: Reject preview rate limits until the action pin is updated
-        shell: bash
-        env:
-          RATE_LIMIT_BINDINGS: ${{ inputs.worker-rate-limit-bindings }}
-        run: |
-          if [ -n "$RATE_LIMIT_BINDINGS" ]; then
-            echo '::error::Preview rate limits require a published action release and updated reusable workflow pin.'
-            exit 1
-          fi
       - name: Run Alchemy deployment policy
         # Pin the published action release immutably.
-        uses: mynameistito/alchemy-deploy@d20c33c9a06b6a2f15816a3a4ebc39eda4b9d9ea # v3.1.8
+        uses: mynameistito/alchemy-deploy@4e29a36d61cf8cc4277bdcd35d7b3eff13150b38 # v3.2.0
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -115,6 +84,11 @@ jobs:
           use-adopt: ${{ inputs.use-adopt }}
           worker-config: ${{ inputs.worker-config }}
           worker-secrets: ${{ secrets.WORKER_SECRETS || inputs.worker-secrets }}
+          worker-rate-limit-bindings: ${{ inputs.worker-rate-limit-bindings }}
+          worker-state-bindings: ${{ inputs.worker-state-bindings }}
+          preview-state-url: ${{ inputs.preview-state-url }}
+          preview-state-expected-origin: ${{ inputs.preview-state-expected-origin }}
+          preview-state-token: ${{ secrets.PREVIEW_STATE_TOKEN }}
           preview-artifact: ${{ inputs.preview-artifact }}
           preview-entrypoint: ${{ inputs.preview-entrypoint }}
           preview-assets-directory: ${{ inputs.preview-assets-directory }}
