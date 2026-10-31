@@ -19,6 +19,7 @@ import { layer as fetchHttpClientLayer } from "effect/http/FetchHttpClient";
 import { z } from "zod";
 
 import { preprovisionedState } from "@/preprovisioned-state.ts";
+import { parseDurableObjectBindings } from "@/worker-do-bindings.ts";
 import { parseRateLimitBindings } from "@/worker-rate-limit-bindings.ts";
 import {
   nativeReferenceBindings,
@@ -139,15 +140,33 @@ const workerPreviewStack = function* workerPreviewStack() {
     throw rateLimits.error;
   }
 
+  const durableObjects = parseDurableObjectBindings(Bun.env, stage);
+
+  if (durableObjects._tag === "err") {
+    throw durableObjects.error;
+  }
+
   const nativeBindings = policy.value
-    ? yield* nativeReferenceBindings(policy.value)
+    ? yield* nativeReferenceBindings(policy.value).pipe(
+        Effect.provide(
+          preprovisionedState(Bun.env, stage).pipe(
+            Layer.provide(fetchHttpClientLayer)
+          )
+        ),
+        Effect.orDie
+      )
     : {};
 
   const preview = yield* Worker("WorkerPreview", {
     assets: yield* effectPromise(artifactAssets),
     bundle: false,
     compatibility: previewCompatibility(),
-    env: { ...previewEnvironment(), ...nativeBindings, ...rateLimits.value },
+    env: {
+      ...previewEnvironment(),
+      ...nativeBindings,
+      ...rateLimits.value,
+      ...durableObjects.value,
+    },
     main: yield* effectPromise(artifactEntrypoint),
     preview: {
       name: stage,
