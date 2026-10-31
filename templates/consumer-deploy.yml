@@ -25,12 +25,13 @@ jobs:
     steps:
       - name: Run Alchemy deployment
         # PR previews download a credential-free Worker artifact from the exact successful CI run.
-        # REQUIRED: replace this placeholder with the full 40-character SHA of a published v2 release.
+        # REQUIRED: replace this placeholder with the full 40-character SHA of a reviewed published v3 release.
         uses: mynameistito/alchemy-deploy@REPLACE_WITH_FULL_40_CHARACTER_RELEASE_SHA
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          OP_SERVICE_ACCOUNT_TOKEN: ""
         with:
           worker-name: replace-me
           deploy-command: bunx --no-install alchemy deploy --stage "$STAGE" --yes
@@ -51,12 +52,13 @@ jobs:
     steps:
       - name: Reconcile preview deployments
         # Cleanup runs the trusted action-owned Alchemy stack, never PR code.
-        # REQUIRED: replace this placeholder with the full 40-character SHA of a published v2 release.
+        # REQUIRED: replace this placeholder with the full 40-character SHA of a reviewed published v3 release.
         uses: mynameistito/alchemy-deploy@REPLACE_WITH_FULL_40_CHARACTER_RELEASE_SHA
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          OP_SERVICE_ACCOUNT_TOKEN: ""
         with:
           worker-name: replace-me
           deploy-command: bunx --no-install alchemy deploy --stage "$STAGE" --yes
