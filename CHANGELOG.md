@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.2.0
+
+### Minor Changes
+
+- c28e5ca: Support explicit preprovisioned KV, D1 and Secrets Store references in trusted Worker Previews.
+- 19dfb17: Add opt-in native Worker Preview rate-limit bindings.
+- 960e0b7: Add an optional preview-only secret string map that deploys values as Cloudflare secret bindings.
+
+  Clear alternate GitHub/1Password bootstrap and preview-input aliases from consumer subprocesses.
+
+  Add opt-in preprovisioned HTTP state for trusted Preview deployment and cleanup, with origin-pinned authenticated transport.
+
+### Patch Changes
+
+- 6fe4532: Keep the 1Password bootstrap token out of action steps and consumer commands.
+
 ## 3.1.8
 
 ### Patch Changes
