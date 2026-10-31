@@ -169,7 +169,7 @@ The PR artifact is untrusted input. The trusted action validates that the select
 
 ## Worker Preview semantics
 
-This integration uses Alchemy `2.0.0-beta.80`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). That release models branch/PR Previews as first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
+This integration uses Alchemy `2.0.0-beta.84`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). Branch/PR Previews are first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
 
 Do not treat every Alchemy `version` as a PR Preview:
 
@@ -203,6 +203,8 @@ bun run validate:changesets
 ```
 
 Run the complete validation suite with `bun run validate`. Releases use [Changesets](https://github.com/changesets/changesets): the release workflow opens the version pull request, then creates an immutable `vX.Y.Z` tag and matching GitHub Release after it merges. Mutable major tags such as `v1` are not maintained.
+
+Release PRs created with `GITHUB_TOKEN` may not start normal PR-triggered CI. Once the manual CI trigger is available on the default and release branches, run `gh workflow run ci.yml --repo mynameistito/alchemy-deploy --ref changeset-release/main` and verify the resulting run's exact head SHA matches the release PR. CI has read-only repository permissions and does not publish or deploy. Refresh generated release content after prerequisite changes and validate that new head before merging; green checks on an older head do not establish release readiness.
 
 The reusable reporting implementation is also available under [`actions/deployment-report`](actions/deployment-report), but the root action is the consumer integration path.
 
