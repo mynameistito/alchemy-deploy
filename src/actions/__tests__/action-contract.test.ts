@@ -318,6 +318,7 @@ describe("composite action contract", () => {
       "mynameistito/alchemy-deploy@4e29a36d61cf8cc4277bdcd35d7b3eff13150b38"
     );
     expect(steps).toHaveLength(1);
+
     for (const name of [
       "worker-rate-limit-bindings",
       "worker-state-bindings",
@@ -326,6 +327,7 @@ describe("composite action contract", () => {
     ]) {
       expect(actionInputs[name]).toBe(githubExpression(`inputs.${name}`));
     }
+
     expect(actionInputs["preview-state-token"]).toBe(
       githubExpression("secrets.PREVIEW_STATE_TOKEN")
     );
