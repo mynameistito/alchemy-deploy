@@ -23,6 +23,8 @@ const environmentFor = (command: ConsumerCommand) =>
       command.environment.ALCHEMY_PREVIEW_STATE_URL ?? "",
     ALCHEMY_WORKER_CONFIG: Bun.env.ALCHEMY_WORKER_CONFIG ?? "",
     ALCHEMY_WORKER_SECRETS: command.environment.ALCHEMY_WORKER_SECRETS ?? "",
+    ALCHEMY_WORKER_STATE_BINDINGS:
+      command.environment.ALCHEMY_WORKER_STATE_BINDINGS ?? "",
     CLOUDFLARE_ACCOUNT_ID: Bun.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     CLOUDFLARE_API_TOKEN: Bun.env.CLOUDFLARE_API_TOKEN ?? "",
     GH_TOKEN: "",
@@ -34,7 +36,9 @@ const environmentFor = (command: ConsumerCommand) =>
     INPUT_PREVIEW_STATE_TOKEN: "",
     INPUT_PREVIEW_STATE_URL: "",
     "INPUT_WORKER-SECRETS": "",
+    "INPUT_WORKER-STATE-BINDINGS": "",
     INPUT_WORKER_SECRETS: "",
+    INPUT_WORKER_STATE_BINDINGS: "",
     OP_CONNECT_TOKEN: "",
     OP_SERVICE_ACCOUNT_TOKEN: "",
     STAGE: command.environment.STAGE ?? "",

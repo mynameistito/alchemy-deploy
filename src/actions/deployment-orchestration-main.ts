@@ -139,6 +139,10 @@ const main = async (): Promise<number> => {
         context.stage._tag === "preview" && mode === "create"
           ? (Bun.env.ALCHEMY_WORKER_SECRETS ?? "")
           : "",
+      ALCHEMY_WORKER_STATE_BINDINGS:
+        context.stage._tag === "preview" && mode === "create"
+          ? (Bun.env.ALCHEMY_WORKER_STATE_BINDINGS ?? "")
+          : "",
       STAGE: context.stage.value,
     },
     logPath:

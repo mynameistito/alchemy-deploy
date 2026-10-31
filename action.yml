@@ -33,6 +33,10 @@ inputs:
     description: Optional JSON object of preview-only secret string values
     default: ""
     required: false
+  worker-state-bindings:
+    description: Optional JSON references to preprovisioned preview resources
+    default: ""
+    required: false
   preview-state-url:
     description: Optional HTTPS root URL of a preprovisioned preview state backend
     default: ""
@@ -235,6 +239,7 @@ runs:
         GH_TOKEN: ""
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
         ALCHEMY_WORKER_SECRETS: ${{ inputs.worker-secrets }}
+        ALCHEMY_WORKER_STATE_BINDINGS: ${{ inputs.worker-state-bindings }}
         ALLOW_FORK_COMMITS: ${{ inputs.allow-fork-commits }}
         ALCHEMY_PREVIEW_ARTIFACT: ${{ runner.temp }}/alchemy-preview
         ALCHEMY_PREVIEW_ASSETS_DIRECTORY: ${{ inputs.preview-assets-directory }}

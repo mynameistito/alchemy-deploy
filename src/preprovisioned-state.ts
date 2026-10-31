@@ -3,6 +3,11 @@ import { makeHttpStateStore, State, StateStoreError } from "alchemy/State";
 import { Effect, Layer } from "effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
+import {
+  nativeReferenceState,
+  parseNativeReferencePolicy,
+} from "@/worker-state-bindings.ts";
+
 // Pinned to @alchemy.run/cloudflare 2.0.0-beta.84 StateStore/Api.ts.
 const CLOUDFLARE_STATE_VERSION = 7;
 
@@ -43,7 +48,10 @@ export const stateSettings = (env: Record<string, string | undefined>) => {
   }
 };
 
-export const preprovisionedState = (env: Record<string, string | undefined>) =>
+export const preprovisionedState = (
+  env: Record<string, string | undefined>,
+  stage?: string
+) =>
   Layer.effect(
     State,
     Effect.gen(function* stateLayer() {
@@ -88,7 +96,15 @@ export const preprovisionedState = (env: Record<string, string | undefined>) =>
 
         yield* guarded.listStacks();
 
-        return guarded;
+        const policy = parseNativeReferencePolicy(env, stage ?? "");
+
+        if (policy._tag === "err") {
+          return yield* policy.error;
+        }
+
+        return policy.value
+          ? yield* nativeReferenceState(guarded, policy.value)
+          : guarded;
       }).pipe(Effect.provideContext(context), Effect.orDie);
 
       return yield* Effect.cached(init);
