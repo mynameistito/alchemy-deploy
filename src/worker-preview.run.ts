@@ -19,6 +19,7 @@ import { layer as fetchHttpClientLayer } from "effect/http/FetchHttpClient";
 import { z } from "zod";
 
 import { preprovisionedState } from "@/preprovisioned-state.ts";
+import { parseRateLimitBindings } from "@/worker-rate-limit-bindings.ts";
 import {
   nativeReferenceBindings,
   parseNativeReferencePolicy,
@@ -132,6 +133,12 @@ const workerPreviewStack = function* workerPreviewStack() {
     throw policy.error;
   }
 
+  const rateLimits = parseRateLimitBindings(Bun.env, stage);
+
+  if (rateLimits._tag === "err") {
+    throw rateLimits.error;
+  }
+
   const nativeBindings = policy.value
     ? yield* nativeReferenceBindings(policy.value)
     : {};
@@ -140,7 +147,7 @@ const workerPreviewStack = function* workerPreviewStack() {
     assets: yield* effectPromise(artifactAssets),
     bundle: false,
     compatibility: previewCompatibility(),
-    env: { ...previewEnvironment(), ...nativeBindings },
+    env: { ...previewEnvironment(), ...nativeBindings, ...rateLimits.value },
     main: yield* effectPromise(artifactEntrypoint),
     preview: {
       name: stage,

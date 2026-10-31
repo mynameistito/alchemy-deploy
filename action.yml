@@ -33,6 +33,10 @@ inputs:
     description: Optional JSON object of preview-only secret string values
     default: ""
     required: false
+  worker-rate-limit-bindings:
+    description: Optional trusted JSON rate-limit bindings for Worker Previews
+    default: ""
+    required: false
   worker-state-bindings:
     description: Optional JSON references to preprovisioned preview resources
     default: ""
@@ -239,6 +243,7 @@ runs:
         GH_TOKEN: ""
         ALCHEMY_WORKER_CONFIG: ${{ inputs.worker-config }}
         ALCHEMY_WORKER_SECRETS: ${{ inputs.worker-secrets }}
+        ALCHEMY_WORKER_RATE_LIMIT_BINDINGS: ${{ inputs.worker-rate-limit-bindings }}
         ALCHEMY_WORKER_STATE_BINDINGS: ${{ inputs.worker-state-bindings }}
         ALLOW_FORK_COMMITS: ${{ inputs.allow-fork-commits }}
         ALCHEMY_PREVIEW_ARTIFACT: ${{ runner.temp }}/alchemy-preview
