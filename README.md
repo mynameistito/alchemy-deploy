@@ -184,6 +184,8 @@ These inputs support ordinary JSON values and secret strings only. JSON objects 
 
 This integration uses Alchemy `2.0.0-beta.85`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). Branch/PR Previews are first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
 
+Upgrade every client sharing a Cloudflare state store to Alchemy beta.85 or newer before using this release. Trusted preview deployments run with `--yes` and can upgrade a shared v7 store to v8 without prompting. Older clients must not access the upgraded store: Alchemy warns that they can lose its encryption key. The default state-store selection is unchanged.
+
 Do not treat every Alchemy `version` as a PR Preview:
 
 - Use `preview.of` for a named branch/PR Preview with its own URL and isolated same-Worker Durable Object state.
