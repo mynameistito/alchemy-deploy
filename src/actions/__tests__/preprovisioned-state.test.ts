@@ -51,7 +51,7 @@ test("public state client checks version then authenticated metadata with redire
     );
 
     return Promise.resolve(
-      Response.json(url.endsWith("/version") ? { version: 7 } : ["docs"])
+      Response.json(url.endsWith("/version") ? { version: 8 } : ["docs"])
     );
   };
 
@@ -77,7 +77,7 @@ test("rejects bad settings, versions, auth and redirects without leaking secrets
   }
 
   for (const response of [
-    Response.json({ version: 6 }),
+    Response.json({ version: 7 }),
     new Response(null, {
       headers: { location: "https://other.example" },
       status: 302,
@@ -105,7 +105,7 @@ test("rejects bad settings, versions, auth and redirects without leaking secrets
 
     return Promise.resolve(
       calls.length === 1
-        ? Response.json({ version: 7 })
+        ? Response.json({ version: 8 })
         : new Response(null, { status: 401 })
     );
   });
@@ -158,7 +158,7 @@ test("native references use actual stage and cache validated HTTP attributes", a
     requests.push(path);
 
     if (path === "/version") {
-      return Response.json({ version: 7 });
+      return Response.json({ version: 8 });
     }
 
     if (path === "/state/stacks") {

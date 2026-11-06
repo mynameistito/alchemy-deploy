@@ -8,8 +8,8 @@ import {
   parseNativeReferencePolicy,
 } from "@/worker-state-bindings.ts";
 
-// Pinned to @alchemy.run/cloudflare 2.0.0-beta.84 StateStore/Api.ts.
-const CLOUDFLARE_STATE_VERSION = 7;
+// Pinned to @alchemy.run/cloudflare 2.0.0-beta.85 StateStore/Api.ts.
+const CLOUDFLARE_STATE_VERSION = 8;
 
 const failure = () =>
   new StateStoreError({
