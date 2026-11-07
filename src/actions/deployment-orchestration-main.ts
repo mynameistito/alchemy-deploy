@@ -135,6 +135,10 @@ const main = async (): Promise<number> => {
         context.stage._tag === "preview"
           ? (Bun.env.ALCHEMY_PREVIEW_STATE_URL ?? "")
           : "",
+      ALCHEMY_WORKER_DO_BINDINGS:
+        context.stage._tag === "preview" && mode === "create"
+          ? (Bun.env.ALCHEMY_WORKER_DO_BINDINGS ?? "")
+          : "",
       ALCHEMY_WORKER_RATE_LIMIT_BINDINGS:
         context.stage._tag === "preview" && mode === "create"
           ? (Bun.env.ALCHEMY_WORKER_RATE_LIMIT_BINDINGS ?? "")

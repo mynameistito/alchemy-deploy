@@ -1,6 +1,7 @@
 /* oxlint-disable eslint/complexity, eslint/no-control-regex, sonarjs/expression-complexity, unicorn/consistent-function-scoping, unicorn/no-hex-escape, anti-slop/require-readable-spacing -- Boundary validation and the state policy keep related checks together. */
-import { D1, KV, SecretsStore } from "@alchemy.run/cloudflare";
-import { StateStoreError } from "alchemy/State";
+import { D1, KV, SecretsStore, Workflow } from "@alchemy.run/cloudflare";
+import type { WorkflowLike } from "@alchemy.run/cloudflare/Workflows";
+import { State, StateStoreError } from "alchemy/State";
 import type { PersistedState, StateService } from "alchemy/State";
 import { Effect } from "effect";
 import { z } from "zod";
@@ -23,7 +24,7 @@ const reference = z
     id: z.string().regex(identifier),
     stack: z.string().regex(identifier),
     stage: z.string(),
-    type: z.enum(["kv", "d1", "secret"]),
+    type: z.enum(["kv", "d1", "secret", "workflow"]),
   })
   .strict();
 
@@ -114,29 +115,6 @@ export const parseNativeReferencePolicy = (
   }
 };
 
-/** Public resource references register no resource lifecycle operations. */
-export const nativeReferenceBindings = (policy: NativeReferencePolicy) =>
-  Effect.gen(function* references() {
-    const result: Record<
-      string,
-      KV.Namespace | D1.Database | SecretsStore.Secret
-    > = {};
-
-    for (const [name, target] of Object.entries(policy.references)) {
-      const options = { stack: target.stack, stage: target.stage };
-
-      if (target.type === "kv") {
-        result[name] = yield* KV.Namespace.ref(target.id, options);
-      } else if (target.type === "d1") {
-        result[name] = yield* D1.Database.ref(target.id, options);
-      } else {
-        result[name] = yield* SecretsStore.Secret.ref(target.id, options);
-      }
-    }
-
-    return result;
-  });
-
 const attributes = {
   d1: z.object({
     accountId: z.string(),
@@ -156,12 +134,20 @@ const attributes = {
       .refine((name) => name.trim() === name),
     storeId: z.string().regex(namespaceId),
   }),
+  workflow: z.object({
+    accountId: z.string(),
+    className: z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/u),
+    scriptName: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/u),
+    workflowId: z.string().min(1).max(128),
+    workflowName: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/u),
+  }),
 };
 
 const resourceTypes = {
   d1: "Cloudflare.D1Database",
   kv: "Cloudflare.KV.Namespace",
   secret: "Cloudflare.SecretsStore.Secret",
+  workflow: "Cloudflare.Workflow",
 };
 
 const rowIdentity = z.object({
@@ -204,6 +190,43 @@ const copiedRow = (
 
       return Object.freeze(copy);
     },
+  });
+
+/** Public resource references register no resource lifecycle operations. */
+export const nativeReferenceBindings = (policy: NativeReferencePolicy) =>
+  Effect.gen(function* references() {
+    const result: Record<
+      string,
+      KV.Namespace | D1.Database | SecretsStore.Secret | WorkflowLike
+    > = {};
+
+    for (const [name, target] of Object.entries(policy.references)) {
+      const options = { stack: target.stack, stage: target.stage };
+
+      if (target.type === "kv") {
+        result[name] = yield* KV.Namespace.ref(target.id, options);
+      } else if (target.type === "d1") {
+        result[name] = yield* D1.Database.ref(target.id, options);
+      } else if (target.type === "secret") {
+        result[name] = yield* SecretsStore.Secret.ref(target.id, options);
+      } else {
+        const getState = yield* State;
+        const state = yield* getState;
+        const row = yield* state.get({ ...options, fqn: target.id });
+        const validated = yield* copiedRow(row, target, policy.account);
+        if (!("attr" in validated)) {
+          return yield* Effect.fail(invalid());
+        }
+        const workflow = attributes.workflow.parse(validated.attr);
+        result[name] = Workflow(target.id, {
+          className: workflow.className,
+          scriptName: workflow.scriptName,
+          workflowName: workflow.workflowName,
+        });
+      }
+    }
+
+    return result;
   });
 
 /** Cache one validated immutable row per reference; prohibit cross-stack writes. */
