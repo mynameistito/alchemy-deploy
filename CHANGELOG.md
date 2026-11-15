@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.1
+
+### Patch Changes
+
+- 1eb3ea3: Upgrade the trusted deployment runtime to Alchemy 2.0.0-beta.87 and Effect 4.1.4, including the matching Cloudflare provider and Effect platform packages.
+
 ## 4.0.0
 
 ### Major Changes
