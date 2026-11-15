@@ -182,7 +182,7 @@ The reusable workflow currently pins v3.1.8, which cannot accept Preview secrets
 
 These inputs support ordinary JSON values and secret strings only. JSON objects resembling D1, KV, Durable Object, service, or other native binding descriptors remain JSON values; they do not create native bindings. Use a separate trusted infrastructure configuration when those resources are needed. The action does not establish whether Cloudflare implicitly inherits omitted parent bindings; verify Preview isolation and access controls with non-sensitive fixtures before allowing untrusted code to run.
 
-This integration uses Alchemy `2.0.0-beta.85`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). Branch/PR Previews are first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
+This integration uses Alchemy `2.0.0-beta.87` and Effect `4.1.4`, including [Alchemy PR #1563](https://github.com/alchemy-run/alchemy/pull/1563). Branch/PR Previews are first-class resources: the trusted stack declares `preview: { of: parentWorker }`, updates the Preview named by the PR stage, and destroys that Preview without deleting or routing traffic to its production parent.
 
 Upgrade every client sharing a Cloudflare state store to Alchemy beta.85 or newer before using this release. Trusted preview deployments run with `--yes` and can upgrade a shared v7 store to v8 without prompting. Older clients must not access the upgraded store: Alchemy warns that they can lose its encryption key. The default state-store selection is unchanged.
 
