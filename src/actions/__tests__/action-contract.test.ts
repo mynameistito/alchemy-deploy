@@ -315,7 +315,7 @@ describe("composite action contract", () => {
     const actionInputs = record.parse(actionStep.with);
 
     expect(actionStep.uses).toBe(
-      "mynameistito/alchemy-deploy@4e29a36d61cf8cc4277bdcd35d7b3eff13150b38"
+      "mynameistito/alchemy-deploy@cfc5ad68e85a994a822a4812e54657e75b80172d"
     );
     expect(steps).toHaveLength(1);
 
